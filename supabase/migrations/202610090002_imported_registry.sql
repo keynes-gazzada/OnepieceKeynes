@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE keynes.daily ADD COLUMN IF NOT EXISTS imported_points_offset INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE keynes.daily ALTER COLUMN presence SET DEFAULT '';
+COMMIT;

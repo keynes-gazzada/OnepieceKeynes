@@ -1,0 +1,600 @@
+:root {
+  --motion-ease-out: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --motion-ease-snap: cubic-bezier(0.18, 0.9, 0.28, 1.25);
+  --page-progress: 0;
+  --pointer-x: 0px;
+  --pointer-y: 0px;
+}
+
+/* Persistent feedback while travelling through a long page. */
+.motion-progress {
+  position: fixed;
+  z-index: 120;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  pointer-events: none;
+  background: var(--op-yellow);
+  box-shadow: 0 1px 0 rgba(23, 17, 14, 0.35);
+  transform: scaleX(var(--page-progress));
+  transform-origin: left center;
+  transition: transform 80ms linear;
+}
+
+.topnav {
+  transition:
+    box-shadow 300ms ease,
+    background-color 300ms ease;
+}
+
+.motion-scrolled .topnav {
+  background: color-mix(in srgb, var(--op-red) 94%, var(--op-ink));
+  box-shadow: 0 10px 24px rgba(23, 17, 14, 0.24);
+}
+
+.nav-logo {
+  transition: scale 220ms var(--motion-ease-snap);
+}
+
+.nav-mark:hover .nav-logo,
+.nav-mark:focus-visible .nav-logo {
+  scale: 1.06;
+}
+
+.nav-links a,
+.nav-cta,
+.logout-button {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    translate 160ms ease,
+    scale 160ms ease;
+}
+
+.nav-links > a:hover,
+.nav-links > a:focus-visible,
+.nav-cta:hover,
+.logout-button:hover {
+  translate: 0 -2px;
+}
+
+.nav-classes-panel {
+  transform-origin: top center;
+}
+
+.nav-classes[open] .nav-classes-panel {
+  animation: motion-menu-in 220ms var(--motion-ease-out) both;
+}
+
+/* Opening shot: a quick manga-like build, then only subtle ambient motion. */
+.hero-art {
+  transform: translate3d(var(--pointer-x), var(--pointer-y), 0) scale(1.045) scaleX(-1);
+  transition: transform 700ms ease-out;
+  animation: motion-hero-art-in 1050ms ease-out both;
+  will-change: transform;
+}
+
+.hero-shade {
+  animation: motion-hero-shade-in 900ms 120ms ease-out both;
+}
+
+.hero-kicker {
+  animation: motion-copy-in 560ms 120ms var(--motion-ease-out) both;
+}
+
+.hero-kicker svg {
+  animation: motion-icon-pop 520ms 260ms var(--motion-ease-snap) both;
+}
+
+.hero h1 > span {
+  display: block;
+  animation: motion-copy-in 680ms var(--motion-ease-out) both;
+}
+
+.hero h1 > span:nth-child(1) {
+  animation-delay: 230ms;
+}
+
+.hero h1 > span:nth-child(2) {
+  animation-delay: 340ms;
+}
+
+.hero h1 > span:nth-child(3) {
+  animation-delay: 450ms;
+}
+
+.hero p {
+  animation: motion-copy-in 650ms 540ms var(--motion-ease-out) both;
+}
+
+.hero-actions > * {
+  animation: motion-copy-in 580ms var(--motion-ease-out) both;
+}
+
+.hero-actions > :nth-child(1) {
+  animation-delay: 650ms;
+}
+
+.hero-actions > :nth-child(2) {
+  animation-delay: 740ms;
+}
+
+.hero-number {
+  animation: motion-copy-in 560ms 830ms var(--motion-ease-out) both;
+}
+
+.hero-volume {
+  animation:
+    motion-volume-reveal 650ms 520ms var(--motion-ease-snap) both,
+    motion-volume-float 5s 1300ms ease-in-out infinite;
+}
+
+.hero-volume > * {
+  animation: motion-volume-item-in 420ms var(--motion-ease-out) both;
+}
+
+.hero-volume > span {
+  animation-delay: 720ms;
+}
+
+.hero-volume > strong {
+  animation-delay: 810ms;
+}
+
+.hero-volume > small {
+  animation-delay: 900ms;
+}
+
+/* Viewport reveals. The individual translate property preserves existing card rotations. */
+.motion-enhanced .motion-reveal {
+  --motion-delay: calc(var(--motion-order, 0) * 55ms);
+  opacity: 0;
+  filter: blur(5px);
+  translate: 0 30px;
+  transition-property: opacity, translate, filter, scale, box-shadow, background-color;
+  transition-duration: 620ms, 760ms, 620ms, 180ms, 180ms, 180ms;
+  transition-timing-function: ease, var(--motion-ease-out), ease, ease, ease, ease;
+  transition-delay: var(--motion-delay), var(--motion-delay), var(--motion-delay), 0ms, 0ms, 0ms;
+}
+
+.motion-enhanced.motion-preparing .motion-reveal {
+  transition: none;
+}
+
+.motion-enhanced .motion-reveal[data-motion-direction='left'] {
+  translate: -42px 0;
+}
+
+.motion-enhanced .motion-reveal[data-motion-direction='right'] {
+  translate: 42px 0;
+}
+
+.motion-enhanced .motion-reveal.is-visible {
+  opacity: 1;
+  filter: none;
+  translate: 0 0;
+}
+
+/* The home sections reveal their contents one object at a time. */
+.motion-enhanced .home-stories .section-heading.motion-reveal:not(.is-visible) > *,
+.motion-enhanced .crew-copy.motion-reveal:not(.is-visible) > *,
+.motion-enhanced .dream-card.motion-reveal:not(.is-visible) .dream-scene > *,
+.motion-enhanced .dream-card.motion-reveal:not(.is-visible) .carousel-bottom > *,
+.motion-enhanced .crew-feature.motion-reveal:not(.is-visible) .crew-scene > *,
+.motion-enhanced .crew-feature.motion-reveal:not(.is-visible) > .carousel-controls {
+  opacity: 0;
+}
+
+.motion-enhanced .home-stories .section-heading.motion-reveal.is-visible > *,
+.motion-enhanced .crew-copy.motion-reveal.is-visible > * {
+  animation: motion-home-item-up 560ms var(--motion-ease-out) both;
+}
+
+.motion-enhanced .home-stories .section-heading.motion-reveal.is-visible > :nth-child(1),
+.motion-enhanced .crew-copy.motion-reveal.is-visible > :nth-child(1) {
+  animation-delay: calc(var(--motion-delay) + 100ms);
+}
+
+.motion-enhanced .home-stories .section-heading.motion-reveal.is-visible > :nth-child(2),
+.motion-enhanced .crew-copy.motion-reveal.is-visible > :nth-child(2) {
+  animation-delay: calc(var(--motion-delay) + 190ms);
+}
+
+.motion-enhanced .home-stories .section-heading.motion-reveal.is-visible > :nth-child(3),
+.motion-enhanced .crew-copy.motion-reveal.is-visible > :nth-child(3) {
+  animation-delay: calc(var(--motion-delay) + 280ms);
+}
+
+.motion-enhanced .dream-card.motion-reveal.is-visible .dream-scene > *,
+.motion-enhanced .dream-card.motion-reveal.is-visible .carousel-bottom > *,
+.motion-enhanced .crew-feature.motion-reveal.is-visible .crew-scene > *,
+.motion-enhanced .crew-feature.motion-reveal.is-visible > .carousel-controls {
+  animation: motion-carousel-item-in 480ms var(--motion-ease-out) both;
+}
+
+.motion-enhanced .dream-card.motion-reveal.is-visible .dream-scene > :nth-child(1),
+.motion-enhanced .crew-feature.motion-reveal.is-visible .crew-scene > :nth-child(1) {
+  animation-delay: calc(var(--motion-delay) + 120ms);
+}
+
+.motion-enhanced .dream-card.motion-reveal.is-visible .dream-scene > :nth-child(2),
+.motion-enhanced .crew-feature.motion-reveal.is-visible .crew-scene > :nth-child(2) {
+  animation-delay: calc(var(--motion-delay) + 210ms);
+}
+
+.motion-enhanced .crew-feature.motion-reveal.is-visible .crew-scene > :nth-child(3),
+.motion-enhanced .dream-card.motion-reveal.is-visible .carousel-bottom > :nth-child(1) {
+  animation-delay: calc(var(--motion-delay) + 300ms);
+}
+
+.motion-enhanced .dream-card.motion-reveal.is-visible .carousel-bottom > :nth-child(2),
+.motion-enhanced .crew-feature.motion-reveal.is-visible > .carousel-controls {
+  animation-delay: calc(var(--motion-delay) + 390ms);
+}
+
+/* Tactile surfaces and controls. */
+.motion-enhanced .dream-card.is-visible:hover,
+.motion-enhanced .crew-feature.is-visible:hover,
+.motion-enhanced .leader-row.is-visible:hover,
+.motion-enhanced .route-card.is-visible:hover,
+.motion-enhanced .mystery-card.is-visible:hover,
+.motion-enhanced .admin-tile.is-visible:hover {
+  scale: 1.012;
+}
+
+.button svg,
+.hero-secondary,
+.hero-secondary svg,
+.welcome-strip a svg,
+.text-button svg,
+.footer-links a svg {
+  transition:
+    transform 180ms ease,
+    translate 180ms ease;
+}
+
+.button:hover svg,
+.welcome-strip a:hover svg,
+.text-button:hover svg {
+  translate: 4px 0;
+}
+
+.hero-secondary:hover {
+  color: var(--op-yellow);
+  translate: 3px 0;
+}
+
+.carousel-controls button {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    scale 150ms var(--motion-ease-snap),
+    translate 150ms ease;
+}
+
+.carousel-controls button:hover {
+  scale: 1.08;
+  translate: 0 -2px;
+}
+
+.carousel-controls button:active,
+.button:active:not(:disabled) {
+  scale: 0.96;
+}
+
+.dream-scene {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.crew-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.crew-scene > strong {
+  margin-top: 17px;
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.crew-scene > span {
+  margin-top: 5px;
+  color: #b9c8ce;
+  font: 12px var(--ui);
+}
+
+.crew-emblem {
+  transition:
+    scale 250ms var(--motion-ease-snap),
+    rotate 250ms var(--motion-ease-snap),
+    box-shadow 250ms ease;
+}
+
+.crew-feature:hover .crew-emblem,
+.leader-row:hover .crew-emblem {
+  scale: 1.08;
+  rotate: -5deg;
+  box-shadow: 0 0 0 5px rgba(243, 165, 29, 0.16);
+}
+
+.motion-enhanced .crew-copy.motion-reveal.is-visible > svg {
+  animation:
+    motion-icon-pop 560ms calc(var(--motion-delay) + 100ms) var(--motion-ease-snap) both,
+    motion-wheel-drift 5s calc(var(--motion-delay) + 850ms) ease-in-out infinite;
+}
+
+.crew-section {
+  position: relative;
+  isolation: isolate;
+}
+
+.crew-section::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -18deg,
+    transparent 0,
+    transparent 44px,
+    rgba(243, 165, 29, 0.035) 44px,
+    rgba(243, 165, 29, 0.035) 47px
+  );
+  background-size: 130% 130%;
+  content: '';
+  animation: motion-sea-lines 14s linear infinite;
+}
+
+.onepiece-page .page-heading::before {
+  animation: motion-heading-watermark 8s ease-in-out infinite alternate;
+}
+
+.auth-postcards figure img,
+.student-bounty,
+.bounty.compact {
+  transition:
+    transform 300ms var(--motion-ease-out),
+    filter 300ms ease;
+}
+
+.auth-postcards figure:hover img {
+  transform: scale(1.045);
+  filter: saturate(1.12) contrast(1.04);
+}
+
+.leader-row:hover .student-bounty,
+.bounty-feature:hover .student-bounty {
+  transform: translateY(-4px) rotate(-0.5deg);
+}
+
+.modal-backdrop {
+  animation: motion-backdrop-in 180ms ease-out both;
+}
+
+.modal {
+  transform-origin: 50% 20%;
+  animation: motion-modal-in 320ms var(--motion-ease-snap) both;
+}
+
+@keyframes motion-menu-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -8px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-hero-art-in {
+  from {
+    opacity: 0.08;
+    filter: saturate(0.75) contrast(1.2) blur(12px);
+  }
+  to {
+    opacity: 1;
+    filter: saturate(1.18) contrast(1.08) blur(0);
+  }
+}
+
+@keyframes motion-hero-shade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.48;
+  }
+}
+
+@keyframes motion-copy-in {
+  from {
+    opacity: 0;
+    translate: -34px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-icon-pop {
+  from {
+    opacity: 0;
+    scale: 0.35;
+    rotate: -28deg;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes motion-home-item-up {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+    translate: 0 20px;
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-volume-reveal {
+  from {
+    opacity: 0;
+    scale: 0.72;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes motion-volume-item-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-volume-float {
+  0%,
+  100% {
+    transform: rotate(-4deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-2.5deg) translateY(-9px);
+  }
+}
+
+@keyframes motion-compass-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translate(50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.38;
+    transform: translate(50%, -50%) scale(1.045);
+  }
+}
+
+@keyframes motion-manga-streak {
+  0%,
+  100% {
+    transform: rotate(-5deg) scaleX(1);
+  }
+  50% {
+    transform: rotate(-5deg) scaleX(1.12);
+  }
+}
+
+@keyframes motion-carousel-item-in {
+  from {
+    opacity: 0;
+    translate: 18px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-wheel-drift {
+  0%,
+  100% {
+    rotate: -5deg;
+    translate: 0 0;
+  }
+  50% {
+    rotate: 7deg;
+    translate: 0 -5px;
+  }
+}
+
+@keyframes motion-sea-lines {
+  to {
+    background-position: 180px 70px;
+  }
+}
+
+@keyframes motion-heading-watermark {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: -18px 0;
+  }
+}
+
+@keyframes motion-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-modal-in {
+  from {
+    opacity: 0;
+    scale: 0.88;
+    translate: 0 18px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+@media (max-width: 780px) {
+  .hero-art {
+    transform: translate3d(0, 0, 0) scale(1.025) scaleX(-1);
+    will-change: auto;
+  }
+
+  .motion-enhanced .motion-reveal[data-motion-direction='left'],
+  .motion-enhanced .motion-reveal[data-motion-direction='right'] {
+    translate: 0 24px;
+  }
+
+  .motion-enhanced .motion-reveal.is-visible {
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-progress {
+    display: none;
+  }
+
+  .hero-art {
+    transform: scaleX(-1);
+    will-change: auto;
+  }
+
+  .motion-reveal,
+  .motion-reveal.is-visible {
+    opacity: 1 !important;
+    filter: none !important;
+    translate: none !important;
+  }
+}

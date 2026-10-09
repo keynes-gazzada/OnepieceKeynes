@@ -1,0 +1,47 @@
+/* Keep functional pages focused on their content. */
+.onepiece-page .page-heading {
+  padding: 12px 0 28px;
+  margin-bottom: 32px;
+  border: 0;
+  border-bottom: 2px solid var(--op-ink);
+  background: transparent;
+  box-shadow: none;
+  color: var(--op-ink);
+}
+
+.onepiece-page .page-heading::before,
+.onepiece-page .page-heading::after {
+  display: none;
+}
+
+.onepiece-page .page-heading h1 {
+  color: var(--op-ink);
+  font-size: clamp(38px, 6vw, 64px);
+  text-shadow: none;
+}
+
+.onepiece-page .page-heading p {
+  max-width: 680px;
+  color: var(--op-ink);
+}
+
+.onepiece-page .page-heading > span {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--op-ink);
+  font-family: var(--ui);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.auth-frame {
+  outline: 0;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.auth-frame::before {
+  display: none;
+}

@@ -1,0 +1,113 @@
+.navigation-menu,
+.navigation-content {
+  display: contents;
+}
+
+.navigation-toggle {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .topnav {
+    position: sticky;
+    top: 0;
+  }
+
+  .nav-inner {
+    position: relative;
+    min-height: 64px;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    padding: 8px 16px;
+  }
+
+  .nav-mark {
+    display: block;
+    width: 132px;
+    height: 42px;
+  }
+
+  .navigation-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 2px solid var(--op-paper-light);
+    background: transparent;
+    color: var(--op-paper-light);
+    font-family: var(--ui);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .navigation-content {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: calc(100dvh - 80px);
+    overflow-y: auto;
+    padding: 16px;
+    border-bottom: 4px solid var(--op-yellow);
+    background: var(--op-red);
+    box-shadow: 0 12px 24px rgb(0 0 0 / 25%);
+  }
+
+  .navigation-content[data-open='false'] {
+    display: none;
+  }
+
+  .navigation-content .nav-links {
+    order: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    width: 100%;
+    overflow: visible;
+  }
+
+  .navigation-content .nav-links > a,
+  .navigation-content .nav-classes summary {
+    padding: 12px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+
+  .navigation-content .nav-classes,
+  .navigation-content .nav-classes[open] {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .navigation-content .nav-classes-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .navigation-content .nav-user {
+    justify-content: space-between;
+    margin-left: 0;
+    border-top: 1px solid rgb(255 255 255 / 35%);
+    padding-top: 12px;
+  }
+
+  .navigation-content .nav-user span {
+    display: block;
+    max-width: calc(100% - 60px);
+  }
+
+  .navigation-content .nav-cta {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sitopunti-keynes",
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS",
+  },
+  "account_id": "e02f27fccffe8034e32be2df26248058",
+  "workers_dev": true,
+  "vars": {
+    "DATABASE_DRIVER": "postgres",
+    "DATABASE_RUNTIME": "workers",
+    "APP_URL": "https://sitopuntikeynes.it",
+    "EMAIL_PROVIDER": "resend",
+    "EMAIL_FROM": "Keynes Grand Line <noreply@sitopuntikeynes.it>",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://yeilkbwmijzrinlugxep.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_x9Dv0qe3vUfxajnzqarM7Q_M66F7WHy",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "24e7f24bd391452ebad7387c753490e5",
+    },
+  ],
+  "routes": [
+    {
+      "pattern": "sitopuntikeynes.it",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "www.sitopuntikeynes.it",
+      "custom_domain": true,
+    },
+  ],
+}

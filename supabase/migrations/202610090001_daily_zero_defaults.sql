@@ -1,0 +1,3 @@
+BEGIN;
+ALTER TABLE keynes.daily ALTER COLUMN phone SET DEFAULT '';
+COMMIT;

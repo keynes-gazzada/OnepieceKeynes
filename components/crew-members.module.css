@@ -1,0 +1,75 @@
+.caption {
+  margin: 0 0 12px;
+  color: #645847;
+  font: 12px var(--ui);
+}
+
+.list .row {
+  gap: 14px;
+  padding: 14px 0;
+}
+
+.portrait,
+.list .initials {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border: 1px solid #bdae95;
+  border-radius: 50%;
+}
+
+.portrait {
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.list .initials {
+  display: grid;
+  place-items: center;
+  background: #e9dbc0;
+  color: var(--op-ink);
+  font: 700 17px var(--ui);
+  text-transform: uppercase;
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.list .score {
+  flex: none;
+  margin-left: auto;
+  color: var(--op-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.score strong {
+  display: block;
+  font: 700 20px var(--ui);
+}
+
+.score small {
+  display: block;
+  margin-top: 3px;
+  color: #645847;
+  font: 11px var(--ui);
+}
+
+@media (max-width: 480px) {
+  .list .row {
+    gap: 10px;
+  }
+  .portrait,
+  .list .initials {
+    width: 42px;
+    height: 42px;
+  }
+  .name strong {
+    font-size: 13px;
+  }
+  .score strong {
+    font-size: 17px;
+  }
+}

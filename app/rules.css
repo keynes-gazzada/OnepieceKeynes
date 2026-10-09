@@ -1,0 +1,140 @@
+.rules-guide {
+  max-width: 1120px;
+}
+
+.rules-intro {
+  padding: 12px 0 32px;
+  border-bottom: 2px solid var(--op-ink);
+}
+
+.rules-intro h1 {
+  margin: 0 0 12px;
+  font-size: clamp(44px, 7vw, 72px);
+  line-height: 1;
+}
+
+.rules-intro p {
+  margin: 0;
+  font-size: 18px;
+}
+
+.rules-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 56px;
+  padding-top: 36px;
+}
+
+.rules-index {
+  position: sticky;
+  top: 100px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: var(--ui);
+  font-size: 14px;
+}
+
+.rules-index span {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.rules-index a:hover {
+  color: var(--op-red);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.rules-chapter {
+  padding-bottom: 36px;
+  scroll-margin-top: 100px;
+}
+
+.rules-chapter + .rules-chapter {
+  padding-top: 30px;
+  border-top: 1px solid rgb(23 17 14 / 25%);
+}
+
+.rules-chapter h2 {
+  margin: 0 0 16px;
+  font-size: 32px;
+}
+
+.rules-chapter p {
+  margin: 0 0 18px;
+  line-height: 1.65;
+}
+
+.rules-chapter > a {
+  color: var(--op-red);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.rules-table {
+  width: 100%;
+  margin: 24px 0;
+  border-collapse: collapse;
+  font-family: var(--ui);
+  font-size: 15px;
+}
+
+.rules-table caption {
+  padding-bottom: 14px;
+  text-align: left;
+  font-weight: 700;
+}
+
+.rules-table th,
+.rules-table td {
+  padding: 12px 0;
+  border-bottom: 1px solid rgb(23 17 14 / 20%);
+  background: transparent;
+  color: var(--op-ink);
+  text-align: left;
+}
+
+.rules-table thead th {
+  font-weight: 700;
+}
+
+.rules-table tbody th {
+  font-weight: 400;
+}
+
+.rules-table th:last-child,
+.rules-table td:last-child {
+  padding-left: 20px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rules-example {
+  padding-left: 16px;
+  border-left: 3px solid var(--op-red);
+}
+
+@media (max-width: 780px) {
+  .rules-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .rules-index {
+    position: static;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgb(23 17 14 / 25%);
+  }
+
+  .rules-chapter h2 {
+    font-size: 28px;
+  }
+
+  .rules-table {
+    font-size: 14px;
+  }
+}

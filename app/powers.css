@@ -1,0 +1,228 @@
+/* Illustrated powers panel: printed cards in the profile's comic palette. */
+.weapons-profile::before {
+  display: none;
+}
+
+.powers-heading {
+  margin: -24px -24px 20px;
+  padding: 16px 22px;
+  background: var(--op-red);
+  color: #fff;
+  font: 24px/1.1 var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.fruit-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 8px 12px;
+  border: 2px solid var(--op-ink);
+  background: #ede2f1;
+  box-shadow: 3px 3px 0 var(--op-ink);
+}
+
+.fruit-summary img {
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.fruit-summary strong {
+  display: block;
+  margin-top: 5px;
+  color: #503166;
+  font: 34px/1 var(--display);
+}
+
+.fruit-summary strong small {
+  font: 12px var(--ui);
+}
+
+.weapons-profile .fruit-summary p {
+  margin: 6px 0 0;
+  color: #503166;
+  font-size: 11px;
+}
+
+.weapons-profile > h3 {
+  margin: 0;
+}
+
+.weapons-profile > p {
+  margin: 8px 0 14px;
+}
+
+.weapons-profile .weapons-list {
+  gap: 12px;
+}
+
+.weapons-list .power-card {
+  --power-tint: #e1eeeb;
+  --power-color: #245b61;
+  position: relative;
+  gap: 13px;
+  min-width: 0;
+  min-height: 106px;
+  padding: 0 12px 0 0;
+  overflow: hidden;
+  background: var(--power-tint);
+  color: var(--op-ink);
+  box-shadow: 3px 3px 0 var(--op-ink);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.weapons-list .power-earth {
+  --power-tint: #f4e5c8;
+  --power-color: #7d462c;
+}
+
+.weapons-list .power-sky {
+  --power-tint: #eee7f3;
+  --power-color: #5b437b;
+}
+
+.weapons-list .power-card:hover {
+  background: var(--power-tint);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--op-ink);
+}
+
+.weapons-list .power-card:focus-visible {
+  outline: 3px solid var(--op-red);
+  outline-offset: 5px;
+}
+
+.power-art {
+  display: grid;
+  place-items: center;
+  flex: 0 0 104px;
+  align-self: stretch;
+  border-right: 2px solid var(--op-ink);
+  background: repeating-linear-gradient(-45deg, transparent 0 7px, #ffffff40 7px 8px);
+}
+
+.power-art img {
+  display: block;
+  width: 104px;
+  height: 104px;
+}
+
+.power-copy {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.weapons-list .power-number {
+  display: block;
+  color: var(--power-color);
+  font: 9px/1.4 var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.weapons-list .power-copy strong {
+  display: block;
+  margin: 3px 0 7px;
+  font: 25px/1.1 var(--display);
+  text-transform: uppercase;
+}
+
+.weapons-list .power-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--power-color);
+  font: 700 10px/1.4 var(--ui);
+}
+
+.power-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.power-arrow {
+  flex: none;
+}
+
+.weapons-list .power-card.used {
+  opacity: 1;
+  filter: none;
+  background: #e9e4db;
+}
+
+.power-card.used .power-art img {
+  filter: grayscale(1);
+  opacity: 0.65;
+}
+
+.weapons-list .used .power-status {
+  color: #6d5145;
+}
+
+.illustrated-weapon img {
+  flex: none;
+  width: 160px;
+  height: 160px;
+}
+
+.weapon-detail.illustrated-weapon {
+  gap: 20px;
+  background: var(--op-paper-light);
+  border: 2px solid var(--op-ink);
+}
+
+.weapon-detail.illustrated-weapon.used {
+  opacity: 1;
+  filter: none;
+}
+
+.illustrated-weapon.used img {
+  filter: grayscale(1);
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  .weapons-list .power-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+  }
+  .power-art {
+    flex-basis: auto;
+    border-right: 0;
+    border-bottom: 2px solid var(--op-ink);
+  }
+  .power-copy {
+    padding: 12px;
+  }
+  .power-arrow {
+    position: absolute;
+    right: 12px;
+    bottom: 14px;
+  }
+}
+
+@media (max-width: 700px) {
+  .weapons-profile .weapons-list {
+    grid-template-columns: 1fr;
+  }
+  .illustrated-weapon {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weapons-list .power-card {
+    transition: none;
+  }
+}

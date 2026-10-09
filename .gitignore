@@ -1,0 +1,16 @@
+node_modules
+.next
+.env*
+!.env.example
+.data
+*.tsbuildinfo
+.DS_Store
+.wrangler
+.dev.vars*
+/dist/
+.vinext/
+.wrangler/
+/outputs/
+/playwright-report/
+/test-results/
+*.log
