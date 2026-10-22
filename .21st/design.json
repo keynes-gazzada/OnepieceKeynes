@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "project": {
+    "name": "one-piece-keynes",
+    "productType": null,
+    "stack": [
+      "nextjs",
+      "react",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "app/globals.css",
+      "app/design-system.css"
+    ],
+    "components": [
+      "components/interactive.tsx",
+      "components/admin-panel.tsx"
+    ],
+    "assets": [
+      "public/images"
+    ],
+    "instructions": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ]
+  },
+  "design": {
+    "colorMode": "light",
+    "colors": {
+      "--muted": {
+        "value": "#657987",
+        "source": "app/globals.css"
+      }
+    },
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [
+      "Modal (components/interactive.tsx)",
+      "Existing registry table and admin tiles"
+    ],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "Preserve the nautical paper palette, Gilroy typography and existing admin density.",
+      "Require an explicit TPSIT or SER selection before editing or saving lesson registers; offer no general register, and keep historical data and Excel imports in the cumulative ranking.",
+      "Bulk selection applies only to visible students; student rankings stay scoped to their class."
+    ],
+    "avoid": []
+  },
+  "decisions": [],
+  "evidence": [
+    {
+      "fact": "design.colorMode:light",
+      "source": "app/globals.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "app/globals.css"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "AGENTS.md"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    },
+    {
+      "fact": "project.stack:nextjs",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-10-12T18:27:40.812Z"
+}

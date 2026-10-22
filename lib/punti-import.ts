@@ -1,4 +1,3 @@
-import { subjectForImport } from './subjects.ts';
 import { randomBytes, scryptSync } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SqlDatabase } from './sql-database.ts';
@@ -247,11 +246,6 @@ export async function importPuntiWorkbook(
     result.crews = importedCrewIds.size;
 
     if (pointsSheet) {
-      const headers = pointsSheet.getRow(1);
-      let subjectColumn = 0;
-      headers.eachCell((cell, index) => {
-        if (key(cellValue(cell)) === 'materia') subjectColumn = index;
-      });
       await database.prepare('DELETE FROM point_events WHERE source=?').run(source);
       await database.prepare('DELETE FROM imported_rows WHERE sheet=?').run(pointsSheet.name);
       for (let rowNumber = 2; rowNumber <= pointsSheet.rowCount; rowNumber++) {
@@ -261,11 +255,6 @@ export async function importPuntiWorkbook(
         const fullName = clean(cellValue(row.getCell(4)));
         const type = clean(cellValue(row.getCell(5)));
         if (!date && !classCode && !fullName && !type) continue;
-        const subject = subjectForImport(
-          classCode,
-          subjectColumn ? clean(cellValue(row.getCell(subjectColumn))) : '',
-          `One Piece, riga ${rowNumber}`,
-        );
         const points = Number(cellValue(row.getCell(6)));
         await saveImportedRow(database, pointsSheet, row);
         if (!date || !classCode || !fullName || !type || !Number.isFinite(points)) {
@@ -294,12 +283,11 @@ export async function importPuntiWorkbook(
         const grade = gradeValue === '' ? null : Number(gradeValue);
         await database
           .prepare(
-            'INSERT INTO point_events(user_id,date,subject,route,type,points,grade,source,source_row) VALUES(?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO point_events(user_id,date,route,type,points,grade,source,source_row) VALUES(?,?,?,?,?,?,?,?)',
           )
           .run(
             userId,
             date,
-            subject,
             route,
             type,
             points,

@@ -1282,9 +1282,110 @@ textarea:focus {
   color: var(--red);
 }
 
-.admin-tile-title h2 {
+.admin-tile-title h2,
+.admin-tile-heading {
   color: var(--deep);
   font-weight: 400;
+}
+
+.admin-tile-heading {
+  font-family: var(--display);
+  font-size: 21px;
+}
+
+.admin-tile-trigger {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-tile-trigger:hover .admin-tile-cta,
+.admin-tile-trigger:focus-visible .admin-tile-cta {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.admin-tile-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--deep);
+  font: 700 12px var(--ui);
+}
+
+.admin-detail-panel {
+  min-width: 0;
+  font-family: var(--ui);
+}
+
+.admin-detail-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.7fr);
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.admin-detail-filters input,
+.admin-detail-filters select {
+  min-width: 0;
+}
+
+.admin-user-list {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-user-list > li {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+.admin-user-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-user-heading h3 {
+  margin: 0;
+  font: 700 16px var(--ui);
+  color: var(--deep);
+}
+
+.admin-user-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-user-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin: 14px 0 0;
+  font-size: 13px;
+}
+
+.admin-user-details dt {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.admin-user-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .stat-line,
@@ -1345,7 +1446,68 @@ textarea:focus {
 }
 .registry-sort-button:disabled {
   cursor: wait;
-  opacity: .6;
+  opacity: 0.6;
+}
+
+.registry-select-all {
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  vertical-align: middle;
+  accent-color: var(--gold);
+}
+.registry-table input[type='number'] {
+  width: 78px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.route-year-filter {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.route-editor,
+.roles-editor {
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.route-year-filter select,
+.roles-editor input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.route-editor > div {
+  grid-template-columns: 52px minmax(0, 1fr) 30px;
+}
+.roles-editor > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 1fr) 30px;
+}
+.roles-editor button,
+.route-editor button {
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.roles-editor button:disabled,
+.route-editor button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .registry-table table {
@@ -1936,6 +2098,11 @@ textarea:focus {
 }
 
 @media (max-width: 430px) {
+  .admin-detail-filters,
+  .admin-user-details {
+    grid-template-columns: 1fr;
+  }
+
   .nav-user span {
     max-width: 150px;
   }

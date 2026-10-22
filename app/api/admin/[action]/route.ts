@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
-import { all, database, hashPassword, one, run, transaction, type User } from '@/lib/database';
+import {
+  all,
+  database,
+  hashPassword,
+  one,
+  run,
+  transaction,
+  type User,
+  type Daily,
+} from '@/lib/database';
 import { adminSchoolEmail, schoolEmailPart } from '@/lib/school-email';
-import { SubjectImportError, subjectForImport, subjectsForClass } from '@/lib/subjects';
 import { isISODate } from '@/lib/dates';
 import { isSameOrigin } from '@/lib/security';
 import { importPuntiWorkbook } from '@/lib/punti-import';
 import { POINT_RULES, GRADE_MULTIPLIERS } from '@/lib/point-rules';
-import { importedRegistry } from '@/lib/imported-registry';
+import { unifiedDaily } from '@/lib/unified-registry';
+import { registrySubject } from '@/lib/registry-lessons';
 export const runtime = 'nodejs';
 const error = (message: string, status = 400) => NextResponse.json({ error: message }, { status });
 const key = (s: unknown) =>
@@ -63,8 +72,7 @@ export async function POST(
             ? `${imported.skippedEvents} movimenti non sono stati associati a uno studente.`
             : '',
         });
-      } catch (cause) {
-        if (cause instanceof SubjectImportError) return error(cause.message);
+      } catch {
         return error('Importazione interrotta: controlla i fogli Studenti e One Piece.');
       }
     }
@@ -81,6 +89,7 @@ export async function POST(
             .slice(1)
             .map((x) => String(x ?? ''));
           let count = 0;
+          const updateDays: Daily[] = [];
           for (let index = 2; index <= sheet.rowCount; index++) {
             const row = sheet.getRow(index);
             const obj: Record<string, unknown> = {};
@@ -160,32 +169,63 @@ export async function POST(
                       )
                     )[0]
                   : undefined;
-              const subject = pirate && isISODate(date)
-                ? subjectForImport(pirate.class_code, val(obj, 'materia'), `Update, riga ${index}`)
-                : '';
               if (pirate && isISODate(date))
-                await run(
-                  'INSERT INTO daily(date,user_id,subject,presence,phone,bug,anxiety,mystery,weapon,multiverse,fruit_points,fruit_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date,user_id,subject) DO UPDATE SET presence=excluded.presence,phone=excluded.phone,bug=excluded.bug,anxiety=excluded.anxiety,mystery=excluded.mystery,fruit_points=excluded.fruit_points,fruit_note=excluded.fruit_note',
+                updateDays.push({
+                  id: index,
                   date,
-                  pirate.id,
-                  subject,
-                  val(obj, 'presenza') || 'P',
-                  val(obj, 'telefono') || '',
-                  Number(val(obj, 'bug') || 0),
-                  Number(val(obj, 'ansia') || 0),
-                  Number(val(obj, 'mistero') || 0),
-                  '',
-                  '',
-                  Number(val(obj, 'frutti', 'punti frutti') || 0),
-                  val(obj, 'note'),
-                );
+                  user_id: pirate.id,
+                  subject: '',
+                  presence: val(obj, 'presenza') || 'P',
+                  phone: val(obj, 'telefono') || '',
+                  bug: Number(val(obj, 'bug') || 0),
+                  anxiety: Number(val(obj, 'ansia') || 0),
+                  mystery: Number(val(obj, 'mistero') || 0),
+                  weapon: '',
+                  multiverse: '',
+                  multiverse_points: 0,
+                  fruit_points: Number(val(obj, 'frutti', 'punti frutti') || 0),
+                  fruit_note: val(obj, 'note'),
+                  imported_points_offset: 0,
+                  updated_at: '',
+                });
             }
+          }
+          // Legacy imports replace only the general register. Named lessons
+          // saved on the same date must remain untouched.
+          for (const day of unifiedDaily(updateDays)) {
+            const previous = unifiedDaily(
+              await all<Daily>(
+                "SELECT * FROM daily WHERE date=? AND user_id=? AND subject=''",
+                day.date,
+                day.user_id,
+              ),
+            )[0];
+            await run(
+              "DELETE FROM daily WHERE date=? AND user_id=? AND subject=''",
+              day.date,
+              day.user_id,
+            );
+            await run(
+              "INSERT INTO daily(date,user_id,subject,presence,phone,bug,anxiety,mystery,weapon,multiverse,multiverse_points,fruit_points,fruit_note,imported_points_offset) VALUES(?,?,'',?,?,?,?,?,?,?,?,?,?,?)",
+              day.date,
+              day.user_id,
+              day.presence,
+              day.phone,
+              day.bug,
+              day.anxiety,
+              day.mystery,
+              previous?.weapon || '',
+              previous?.multiverse || '',
+              previous?.multiverse_points || 0,
+              day.fruit_points,
+              day.fruit_note,
+              day.imported_points_offset || 0,
+            );
           }
           counts[sheet.name] = count;
         }
       });
-    } catch (cause) {
-      if (cause instanceof SubjectImportError) return error(cause.message);
+    } catch {
       return error('Importazione interrotta: controlla il formato del file.');
     }
     if (!Object.keys(counts).length)
@@ -237,7 +277,6 @@ export async function POST(
     const id = body.id === undefined ? undefined : Number(body.id);
     const points = body.points === undefined ? 0 : body.points;
     const date = typeof body.date === 'string' ? body.date : '';
-    const subject = typeof body.subject === 'string' ? body.subject : '';
     if (typeof points !== 'number' || ![0, 2, 4].includes(points))
       return error('I punti del sogno possono essere solo 0, +2 o +4.');
     if ((date && !isISODate(date)) || (points > 0 && !isISODate(date)))
@@ -247,41 +286,33 @@ export async function POST(
       ? await one<User>("SELECT * FROM users WHERE id=? AND role='student'", userId)
       : undefined;
     if (!student) return error('Seleziona uno studente valido.');
-    const allowedSubjects = subjectsForClass(student.class_code);
-    if (
-      (subject && !allowedSubjects.includes(subject)) ||
-      (points > 0 && allowedSubjects.length && !subject)
-    )
-      return error('Seleziona una materia valida per i punti del sogno.');
     if (id !== undefined) {
       if (!Number.isSafeInteger(id) || id <= 0) return error('Sogno non valido.');
       const result = await run(
-        'UPDATE dreams SET text=?,user_id=?,points=?,date=?,subject=? WHERE id=?',
+        "UPDATE dreams SET text=?,user_id=?,points=?,date=?,subject='' WHERE id=?",
         text,
         userId,
         points,
         date,
-        subject,
         id,
       );
       if (!result.changes) return error('Sogno non trovato.', 404);
       return NextResponse.json({
         ok: true,
-        dream: { id, user_id: userId, text, points, date, subject },
+        dream: { id, user_id: userId, text, points, date },
       });
     }
     const result = await run(
-      'INSERT INTO dreams(user_id,text,points,date,subject) VALUES(?,?,?,?,?)',
+      'INSERT INTO dreams(user_id,text,points,date) VALUES(?,?,?,?)',
       userId,
       text,
       points,
       date,
-      subject,
     );
     return NextResponse.json(
       {
         ok: true,
-        dream: { id: Number(result.lastInsertRowid), user_id: userId, text, points, date, subject },
+        dream: { id: Number(result.lastInsertRowid), user_id: userId, text, points, date },
       },
       { status: 201 },
     );
@@ -295,7 +326,10 @@ export async function POST(
   }
   if (action === 'registry') {
     const date = String(body.date || '');
-    const subject = String(body.subject || '');
+    const subject = registrySubject(body.subject);
+    if (subject === null) return error('Materia non valida.');
+    if (!subject) return error('Seleziona una materia prima di salvare il registro.');
+    const legacySubject = subject === 'TPSIT' ? 'TePi' : subject;
     const rows = body.rows;
     if (!isISODate(date) || !Array.isArray(rows)) return error('Data o registro non validi.');
     for (const raw of rows) {
@@ -305,36 +339,60 @@ export async function POST(
         Number(raw.user_id),
       );
       if (!pirate) return error('Studente non valido.');
-      const subjects = subjectsForClass(pirate.class_code);
-      if ((subjects.length && !subjects.includes(subject)) || (!subjects.length && subject))
-        return error('Seleziona una materia valida per la classe.');
+      const bug = Number(raw.bug || 0),
+        multiverse = Number(raw.multiverse_points || 0);
+      if (
+        !Number.isSafeInteger(bug) ||
+        bug < 0 ||
+        bug > 1_000_000 ||
+        !Number.isSafeInteger(multiverse) ||
+        multiverse < 0 ||
+        multiverse > 80_000_000 ||
+        multiverse % POINT_RULES.multiverse !== 0
+      )
+        return error('Inserisci un numero intero valido di Bug e Multiversi.');
     }
     try {
       await transaction(async () => {
         const mysteryCrews = new Set<number>();
-        const imported = importedRegistry(await all<{ user_id: number; type: string; points: number }>(
-          'SELECT user_id,type,points FROM point_events WHERE date=? AND subject=?', date, subject,
-        ));
         for (const raw of rows) {
           const r = raw as Record<string, unknown>,
             id = Number(r.user_id);
           const pirate = await one<User>("SELECT * FROM users WHERE id=? AND role='student'", id);
           if (!pirate) continue;
-          const presence = ['', 'P', 'A', 'A+'].includes(String(r.presence)) ? String(r.presence) : '';
-          const importedOffset = r.imported_points_offset === undefined ? 0 : (imported[id]?.imported_points_offset || 0);
+          const presence = ['', 'P', 'A', 'A+'].includes(String(r.presence))
+            ? String(r.presence)
+            : '';
+          const previous = unifiedDaily(
+            await all<Daily>(
+              'SELECT * FROM daily WHERE date=? AND user_id=? AND subject IN (?,?)',
+              date,
+              id,
+              subject,
+              legacySubject,
+            ),
+          )[0];
+          const importedOffset = previous?.imported_points_offset ?? 0;
           const phone = String(r.phone) === '+' ? '+' : '';
-          const bug = r.bug ? 1 : 0,
+          const bug = Number(r.bug || 0),
             anxiety = r.anxiety ? 1 : 0,
             mystery = r.mystery ? 1 : 0,
-            weapon = ['', 'Poseidon', 'Pluton', 'Uranus'].includes(String(r.weapon || ''))
+            weapon = String(r.weapon || '')
+              .split(', ')
+              .every((name) => ['', 'Poseidon', 'Pluton', 'Uranus'].includes(name))
               ? String(r.weapon || '')
               : '';
-          const multiverse = String(r.multiverse || '').slice(0, 1000),
-            multiversePoints = [0, POINT_RULES.multiverse].includes(Number(r.multiverse_points))
-              ? Number(r.multiverse_points)
-              : 0;
+          const multiverse = String(r.multiverse || '').slice(0, 10000),
+            multiversePoints = Number(r.multiverse_points || 0);
           await run(
-            'INSERT INTO daily(date,user_id,subject,presence,phone,bug,anxiety,mystery,weapon,multiverse,multiverse_points,imported_points_offset,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(date,user_id,subject) DO UPDATE SET presence=excluded.presence,phone=excluded.phone,bug=excluded.bug,anxiety=excluded.anxiety,mystery=excluded.mystery,weapon=excluded.weapon,multiverse=excluded.multiverse,multiverse_points=excluded.multiverse_points,imported_points_offset=excluded.imported_points_offset,updated_at=CURRENT_TIMESTAMP',
+            'DELETE FROM daily WHERE date=? AND user_id=? AND subject IN (?,?)',
+            date,
+            id,
+            subject,
+            legacySubject,
+          );
+          await run(
+            'INSERT INTO daily(date,user_id,subject,presence,phone,bug,anxiety,mystery,weapon,multiverse,multiverse_points,imported_points_offset,fruit_points,fruit_note,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
             date,
             id,
             subject,
@@ -347,14 +405,17 @@ export async function POST(
             multiverse,
             multiversePoints,
             importedOffset,
+            previous?.fruit_points || 0,
+            previous?.fruit_note || '',
           );
           if (mystery && pirate.crew_id) mysteryCrews.add(pirate.crew_id);
         }
         for (const crewId of mysteryCrews)
           await run(
-            'UPDATE daily SET mystery=1 WHERE date=? AND subject=? AND user_id IN (SELECT id FROM users WHERE crew_id=?)',
+            'UPDATE daily SET mystery=1 WHERE date=? AND subject IN (?,?) AND user_id IN (SELECT id FROM users WHERE crew_id=?)',
             date,
             subject,
+            legacySubject,
             crewId,
           );
       });
@@ -364,14 +425,6 @@ export async function POST(
     }
   }
   if (action === 'grade') {
-    const subject = String(body.subject || '');
-    const pirate = await one<User>(
-      "SELECT * FROM users WHERE id=? AND role='student'",
-      Number(body.user_id),
-    );
-    const subjects = pirate ? subjectsForClass(pirate.class_code) : [];
-    if ((subjects.length && !subjects.includes(subject)) || (!subjects.length && subject))
-      return error('Seleziona una materia valida per la classe.');
     const id = Number(body.user_id),
       date = String(body.date || ''),
       type = String(body.type || ''),
@@ -379,20 +432,17 @@ export async function POST(
     if (
       !(await one("SELECT id FROM users WHERE id=? AND role='student'", id)) ||
       !isISODate(date) ||
-      !['verifica', 'interrogazione', 'progetto'].includes(type) ||
+      !['verifica', 'progetto'].includes(type) ||
       !Number.isFinite(grade) ||
       grade < 2 ||
       grade > 10
     )
       return error('Voto non valido.');
-    const mult = GRADE_MULTIPLIERS[
-      type as 'verifica' | 'interrogazione' | 'progetto'
-    ];
+    const mult = GRADE_MULTIPLIERS[type as 'verifica' | 'progetto'];
     await run(
-      'INSERT INTO grades(user_id,date,subject,type,grade,points) VALUES(?,?,?,?,?,?)',
+      'INSERT INTO grades(user_id,date,type,grade,points) VALUES(?,?,?,?,?)',
       id,
       date,
-      subject,
       type,
       grade,
       Math.round(grade * mult),
@@ -418,7 +468,11 @@ export async function POST(
   if (action === 'role') {
     const id = Number(body.user_id),
       role = String(body.role || '').trim();
-    if (!(await one('SELECT id FROM users WHERE id=?', id)) || !role)
+    if (
+      !(await one("SELECT id FROM users WHERE id=? AND role='student'", id)) ||
+      !role ||
+      role.length > 120
+    )
       return error('Ruolo non valido.');
     await run('UPDATE users SET roles=? WHERE id=?', role, id);
     return NextResponse.json({ ok: true });
@@ -455,6 +509,13 @@ export async function POST(
       '[false,false,false,false]',
     );
     return NextResponse.json({ ok: true, id: Number(result.lastInsertRowid) });
+  }
+  if (action === 'mystery-delete') {
+    const id = Number(body.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return error('Mistero non valido.');
+    const result = await run('DELETE FROM mysteries WHERE id=?', id);
+    if (!result.changes) return error('Mistero non trovato.', 404);
+    return NextResponse.json({ ok: true });
   }
   if (action === 'mystery-clue') {
     const id = Number(body.id),

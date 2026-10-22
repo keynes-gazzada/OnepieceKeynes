@@ -5,9 +5,9 @@ const dailyRules = [
   ['Assenza (A)', '−40'],
   ['Assenza penalizzata (A+)', '−80'],
   ['Telefono', '+30'],
-  ['Bug segnalato', '+50'],
+  ['Bug segnalato', '+50 per Bug'],
   ['Ansia', '−30'],
-  ['Multiverso', '+80'],
+  ['Multiverso', '+80 per Multiverso'],
   ['Sogno', '+2 / +4'],
   ['Mistero risolto', '+2.000'],
 ];
@@ -23,7 +23,7 @@ export function RulesPage() {
         <nav className="rules-index" aria-label="Indice delle regole">
           <span>In questa pagina</span>
           <a href="#punti">Punti e voti</a>
-          <a href="#classifiche">Materie e classifiche</a>
+          <a href="#classifiche">Classifica</a>
           <a href="#ciurme">Ciurme e ruoli</a>
           <a href="#armi-misteri">Armi e misteri</a>
         </nav>
@@ -47,18 +47,14 @@ export function RulesPage() {
                   <td>×200</td>
                 </tr>
                 <tr>
-                  <th scope="row">Interrogazione</th>
-                  <td>×15</td>
-                </tr>
-                <tr>
                   <th scope="row">Progetto</th>
                   <td>×100</td>
                 </tr>
               </tbody>
             </table>
             <p className="rules-example">
-              Esempio: un 8 in una verifica vale 8 × 200 = <strong>1.600 punti</strong>.
-              Le nuove giornate partono da zero. I punti del telefono si assegnano selezionando “+”.
+              Esempio: un 8 in una verifica vale 8 × 200 = <strong>1.600 punti</strong>. Le nuove
+              giornate partono da zero. I punti del telefono si assegnano selezionando “+”.
             </p>
             <table className="rules-table">
               <caption>Voci del registro giornaliero</caption>
@@ -83,24 +79,24 @@ export function RulesPage() {
             </p>
           </section>
           <section id="classifiche" className="rules-chapter">
-            <h2>Materie e classifiche</h2>
+            <h2>Classifica</h2>
             <p>
-              In 3CI e 4CI, TPSIT e SER hanno registri separati. Ogni materia ha i propri voti, punti
-              e classifica.
+              Tutte le attività condividono un unico registro e una sola classifica. I voti, le
+              attività e i punti già assegnati concorrono al totale.
             </p>
             <p>
-              Nel profilo e nella classifica scegli la materia. Puoi vedere il totale oppure
-              filtrare per anno e rotta. Per caricare i punti dall’Excel, compila la colonna Materia
-              con TPSIT o SER. In 5CI la materia è TPSIT.
+              Gli studenti vedono la classifica della propria classe e possono filtrarla per anno e
+              rotta. Il Narratore può confrontare tutte le classi nella classifica generale. La
+              colonna Materia dell’Excel viene ignorata.
             </p>
             <Link href="/viaggio">Apri la classifica</Link>
           </section>
           <section id="ciurme" className="rules-chapter">
             <h2>Ciurme e ruoli</h2>
             <p>
-              Il Narratore assegna gli studenti alle ciurme e imposta i ruoli: Capitano, Navigatore,
-              Archeologo ed Equipaggio. Nel profilo trovi la tua ciurma, i membri e il ruolo
-              assegnato.
+              Il Narratore assegna gli studenti alle ciurme e può modificare i ruoli in qualsiasi
+              momento, scegliendo un ruolo suggerito o scrivendone uno personalizzato. Nel profilo
+              trovi la tua ciurma, i membri e il ruolo assegnato.
             </p>
             <p>
               Le attività del Capitano, compresa l’Ambizione del Re Conquistatore, vengono definite

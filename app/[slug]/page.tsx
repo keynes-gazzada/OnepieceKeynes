@@ -19,9 +19,9 @@ import { ProfilePanels } from '@/components/profile-panels';
 import { MysteriesPage } from '@/components/mysteries-page';
 import { AdminPanel } from '@/components/admin-panel';
 import { StudentBounty } from '@/components/student-bounty';
-import { selectedSubject, subjectLabel } from '@/lib/subjects';
-import { SubjectTabs } from '@/components/subject-tabs';
 import { currentUser, requireUser } from '@/lib/auth';
+import { isISODate } from '@/lib/dates';
+import { unifiedDaily } from '@/lib/unified-registry';
 import {
   all,
   dailyPoints,
@@ -151,30 +151,21 @@ export default async function Page({
   const user = await requireUser();
   if (slug === 'profilo') {
     if (user.role === 'admin') redirect('/narratore');
-    const subject = selectedSubject(user.class_code, query.materia);
     const [crew, grades, pointEvents, daily, rankings, dreamScores, routes, crewMembers] =
       await Promise.all([
         user.crew_id ? one<Crew>('SELECT * FROM crews WHERE id=?', user.crew_id) : undefined,
-        all<Grade>(
-          'SELECT * FROM grades WHERE user_id=? AND subject=? ORDER BY date DESC,id DESC',
-          user.id,
-          subject,
-        ),
+        all<Grade>('SELECT * FROM grades WHERE user_id=? ORDER BY date DESC,id DESC', user.id),
         all<PointEvent>(
-          'SELECT * FROM point_events WHERE user_id=? AND subject=? ORDER BY date DESC,id DESC',
+          'SELECT * FROM point_events WHERE user_id=? ORDER BY date DESC,id DESC',
           user.id,
-          subject,
         ),
-        all<Daily>(
-          'SELECT * FROM daily WHERE user_id=? AND subject=? ORDER BY date DESC,id DESC',
-          user.id,
-          subject,
+        all<Daily>('SELECT * FROM daily WHERE user_id=? ORDER BY date DESC,id DESC', user.id).then(
+          unifiedDaily,
         ),
-        leaderboard(undefined, subject),
+        leaderboard(),
         all<{ date: string; points: number }>(
-          'SELECT date,points FROM dreams WHERE user_id=? AND subject=?',
+          'SELECT date,points FROM dreams WHERE user_id=?',
           user.id,
-          subject,
         ),
         all<Route>(
           'SELECT * FROM routes WHERE class_code=? ORDER BY year,ordinal',
@@ -214,7 +205,7 @@ export default async function Page({
           async ([key, [start, end]]) =>
             [
               key,
-              (await leaderboardForRange(user.class_code, start, end, subject)).find(
+              (await leaderboardForRange(user.class_code, start, end)).find(
                 (member) => member.id === user.id,
               )?.position || 0,
             ] as const,
@@ -226,9 +217,8 @@ export default async function Page({
         <Heading
           eyebrow={`Pirata · ${user.class_code}`}
           title="La tua taglia"
-          sub="Punti, voti e attività della materia selezionata."
+          sub="Punti, voti e attività del registro unico."
         />
-        <SubjectTabs path="/profilo" classCode={user.class_code} subject={subject} />
         <div className="profile-intro">
           <div>
             <span className="overline">Pirata a bordo</span>
@@ -244,12 +234,12 @@ export default async function Page({
             </div>
           </div>
           <div className="profile-balance">
-            <span>Saldo punti · {subjectLabel(subject) || 'Registro precedente'}</span>
+            <span>Saldo punti</span>
             <strong>
               {money(score)} <small>฿</small>
             </strong>
             <p>Posizione #{rank || '—'} nella classe</p>
-            <Link href={`/viaggio?materia=${encodeURIComponent(subject || 'storico')}`}>
+            <Link href="/viaggio">
               Apri la classifica <ArrowRight size={15} />
             </Link>
           </div>
@@ -271,10 +261,9 @@ export default async function Page({
             members={await Promise.all(
               crewMembers.map(async (member) => ({
                 ...member,
-                score: scoresByUser.get(member.id) ?? (await scoreFor(member.id, subject)),
+                score: scoresByUser.get(member.id) ?? (await scoreFor(member.id)),
               })),
             )}
-            scoreSubject={subjectLabel(subject) || 'Registro precedente'}
             grades={grades}
             pointEvents={pointEvents}
             daily={daily}
@@ -373,15 +362,19 @@ export default async function Page({
     );
   }
   if (slug === 'viaggio') {
+    const classes = (
+      await all<{ class_code: string }>(
+        "SELECT DISTINCT class_code FROM users WHERE role='student' AND class_code<>'' ORDER BY class_code",
+      )
+    ).map((row) => row.class_code);
     const cls =
       user.role === 'admin'
-        ? typeof query.classe === 'string'
+        ? typeof query.classe === 'string' && classes.includes(query.classe)
           ? query.classe
-          : '3CI'
+          : ''
         : user.class_code;
-    const subject = selectedSubject(cls, query.materia);
-    const year = typeof query.anno === 'string' ? Number(query.anno) : 0,
-      route = typeof query.rotta === 'string' ? Number(query.rotta) : 0;
+    const year = cls && typeof query.anno === 'string' ? Number(query.anno) : 0,
+      route = cls && typeof query.rotta === 'string' ? Number(query.rotta) : 0;
     const routes = await all<Route>(
       'SELECT * FROM routes WHERE class_code=? ORDER BY year,ordinal',
       cls,
@@ -389,30 +382,38 @@ export default async function Page({
     const selected = route ? routes.find((r) => r.year === year && r.ordinal === route) : null;
     const sameYear = routes.filter((r) => r.year === year);
     const rankings = selected
-      ? await leaderboardForRange(cls, selected.start_date, selected.end_date, subject)
+      ? await leaderboardForRange(cls, selected.start_date, selected.end_date)
       : year && sameYear.length
-        ? await leaderboardForRange(cls, sameYear[0].start_date, sameYear.at(-1)!.end_date, subject)
-        : await leaderboard(cls, subject);
-    const crews = await all<Crew>('SELECT * FROM crews WHERE class_code=?', cls);
+        ? await leaderboardForRange(cls, sameYear[0].start_date, sameYear.at(-1)!.end_date)
+        : await leaderboard(cls);
+    const crews = await all<Crew>(
+      cls ? 'SELECT * FROM crews WHERE class_code=?' : 'SELECT * FROM crews',
+      ...(cls ? [cls] : []),
+    );
     return (
       <div className="container page onepiece-page leaderboard-page">
         <Heading
-          eyebrow={`Classifica · ${cls} · ${subjectLabel(subject) || 'Registro precedente'}`}
+          eyebrow={`Classifica · ${cls || 'Tutte le classi'}`}
           title="Classifica Grand Line"
-          sub="Punti della materia selezionata, per anno e rotta."
+          sub="Tutti i punti del registro unico, in ordine di taglia."
         />
-        <SubjectTabs path="/viaggio" classCode={cls} subject={subject} year={year} route={route} />
         <div className="filter-bar">
           <Link
-            href={`/viaggio?classe=${encodeURIComponent(cls)}&materia=${encodeURIComponent(subject || 'storico')}`}
+            href={cls ? `/viaggio?classe=${encodeURIComponent(cls)}` : '/viaggio'}
             className={!year ? 'active' : ''}
           >
             Totale
           </Link>
           <form action="/viaggio" className="inline-filters">
-            <input type="hidden" name="materia" value={subject || 'storico'} />
-            {user.role === 'admin' ? <input type="hidden" name="classe" value={cls} /> : null}
-            <select name="anno" defaultValue={year || ''} aria-label="Anno" onChange={undefined}>
+            {user.role === 'admin' ? (
+              <select name="classe" defaultValue={cls} aria-label="Classe della classifica">
+                <option value="">Tutte le classi</option>
+                {classes.map((classCode) => (
+                  <option key={classCode}>{classCode}</option>
+                ))}
+              </select>
+            ) : null}
+            <select name="anno" defaultValue={year || ''} aria-label="Anno" disabled={!cls}>
               <option value="">Tutti gli anni</option>
               {[...new Set(routes.map((r) => r.year))].map((y) => (
                 <option key={y} value={y}>
@@ -456,7 +457,9 @@ export default async function Page({
                     <strong>
                       {p.last_name} {p.first_name}
                     </strong>
-                    <span>{crew?.name || 'Senza ciurma'}</span>
+                    <span>
+                      {p.class_code} · {crew?.name || 'Senza ciurma'}
+                    </span>
                   </div>
                   <div className="leader-crew">
                     <CrewEmblem flag={crew?.flag} name={crew?.name} />
@@ -538,9 +541,12 @@ export default async function Page({
   }
   if (slug === 'narratore') {
     if (user.role !== 'admin') redirect('/profilo');
-    const [users, crews, routes, mysteries, dreams] = await Promise.all([
+    const [users, narrators, crews, routes, mysteries, dreams] = await Promise.all([
       all<User>(
         "SELECT id,email,first_name,last_name,class_code,role,crew_id,roles,last_password_change FROM users WHERE role='student' ORDER BY class_code,last_name",
+      ),
+      all<User>(
+        "SELECT id,email,first_name,last_name,class_code,role,crew_id,roles,last_password_change FROM users WHERE role='admin' ORDER BY last_name,first_name",
       ),
       all<Crew>('SELECT * FROM crews ORDER BY class_code,name'),
       all<Route>('SELECT * FROM routes ORDER BY class_code,year,ordinal'),
@@ -551,8 +557,7 @@ export default async function Page({
         text: string;
         points: number;
         date: string;
-        subject: string;
-      }>('SELECT id,user_id,text,points,date,subject FROM dreams ORDER BY id DESC'),
+      }>('SELECT id,user_id,text,points,date FROM dreams ORDER BY id DESC'),
     ]);
     const classes = [
       ...new Set(
@@ -565,7 +570,6 @@ export default async function Page({
         : classes.includes('3CI')
           ? '3CI'
           : classes[0] || '';
-    const subject = selectedSubject(cls, query.materia);
     return (
       <div className="container page onepiece-page admin-page">
         <Heading
@@ -574,10 +578,14 @@ export default async function Page({
           sub="Aggiorna la giornata, importa i dati e gestisci rotte e ruoli."
         />
         <AdminPanel
-          key={`${cls}:${subject}`}
+          key={cls}
           initialClass={cls}
-          initialSubject={subject}
+          initialSubject={typeof query.materia === 'string' ? query.materia : undefined}
+          initialDate={
+            typeof query.data === 'string' && isISODate(query.data) ? query.data : undefined
+          }
           users={users}
+          narrators={narrators}
           crews={crews}
           routes={routes}
           mysteries={mysteries}

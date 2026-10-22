@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 
-test('existing daily rows survive migration and subject scores remain independent', () => {
+test('existing daily rows survive migration and historic subject scores are combined', () => {
   const directory = mkdtempSync(join(tmpdir(), 'keynes-subject-migration-'));
   const path = join(directory, 'legacy.sqlite');
   const source = readFileSync(resolve('lib/db.ts'), 'utf8');
@@ -42,13 +42,22 @@ test('existing daily rows survive migration and subject scores remain independen
     );
     writeFileSync(
       join(directory, 'registry-core.cjs'),
-      ts.transpileModule(readFileSync(resolve('lib/registry-core.ts'), 'utf8').replace("'./point-rules'", "'./point-rules.cjs'"), {
+      ts.transpileModule(
+        readFileSync(resolve('lib/registry-core.ts'), 'utf8').replace(
+          "'./point-rules'",
+          "'./point-rules.cjs'",
+        ),
+        {
+          compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+        },
+      ).outputText,
+    );
+    writeFileSync(
+      join(directory, 'point-rules.cjs'),
+      ts.transpileModule(readFileSync(resolve('lib/point-rules.ts'), 'utf8'), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
       }).outputText,
     );
-    writeFileSync(join(directory, 'point-rules.cjs'), ts.transpileModule(readFileSync(resolve('lib/point-rules.ts'), 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-    }).outputText);
     const output = execFileSync(
       process.execPath,
       [
@@ -68,10 +77,10 @@ test('existing daily rows survive migration and subject scores remain independen
       mod.run("INSERT INTO daily(date,user_id,subject,presence,phone) VALUES('2026-10-06',1,'SER','A','-')");
       mod.run("INSERT INTO grades(user_id,date,type,grade,points,subject) VALUES(1,'2026-10-06','verifica',8,160,'TePi')");
       mod.run("INSERT INTO point_events(user_id,date,type,points,source,source_row,subject) VALUES(1,'2026-10-06','Bug',10,'test',1,'SER')");
-      assert.equal(mod.scoreFor(1, 'TePi'), 190);
-      assert.equal(mod.scoreFor(1, 'SER'), -30);
-      assert.equal(mod.scoreFor(1, ''), 17);
-      assert.equal(mod.leaderboardForRange('3CI','2026-10-01','2026-10-31','TePi')[0].score,190);
+      assert.equal(mod.scoreFor(1), 177);
+
+
+      assert.equal(mod.leaderboardForRange('3CI','2026-10-01','2026-10-31')[0].score,177);
       db.close();
       delete require.cache[require.resolve(path)];
       mod = require(path);

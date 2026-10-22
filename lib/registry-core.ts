@@ -43,7 +43,6 @@ export type Daily = {
 };
 export type Grade = {
   id: number;
-  subject: string;
   user_id: number;
   date: string;
   type: string;
@@ -52,7 +51,6 @@ export type Grade = {
 };
 export type PointEvent = {
   id: number;
-  subject: string;
   user_id: number;
   date: string;
   route: number;
@@ -83,7 +81,14 @@ export function sha(value: string) {
 export function dailyPoints(
   r: Pick<
     Daily,
-    'presence' | 'phone' | 'bug' | 'anxiety' | 'mystery' | 'multiverse_points' | 'fruit_points' | 'imported_points_offset'
+    | 'presence'
+    | 'phone'
+    | 'bug'
+    | 'anxiety'
+    | 'mystery'
+    | 'multiverse_points'
+    | 'fruit_points'
+    | 'imported_points_offset'
   >,
 ) {
   return calculateDailyPoints(r);

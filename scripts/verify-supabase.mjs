@@ -58,21 +58,18 @@ try {
         .prepare(
           'INSERT INTO daily(date,user_id,subject,presence,phone) VALUES(?,?,?,?,?) ON CONFLICT(date,user_id,subject) DO UPDATE SET presence=excluded.presence,phone=excluded.phone,updated_at=CURRENT_TIMESTAMP',
         )
-        .run('2026-10-06', event.user_id, 'TePi', 'P', '+');
+        .run('2026-10-06', event.user_id, '', 'P', '+');
       await db
         .prepare(
           'INSERT INTO daily(date,user_id,subject,presence,phone) VALUES(?,?,?,?,?) ON CONFLICT(date,user_id,subject) DO UPDATE SET presence=excluded.presence,phone=excluded.phone,updated_at=CURRENT_TIMESTAMP',
         )
-        .run('2026-10-06', event.user_id, 'TePi', 'A', '-');
-      await db
-        .prepare('INSERT INTO daily(date,user_id,subject,presence,phone) VALUES(?,?,?,?,?)')
-        .run('2026-10-06', event.user_id, 'SER', 'P', '+');
+        .run('2026-10-06', event.user_id, '', 'A', '-');
       const rows = await db.prepare('SELECT * FROM daily WHERE user_id=?').all(event.user_id);
-      assert.equal(rows.length, 2);
-      assert.equal(rows.find((row) => row.subject === 'TePi').phone, '-');
-      assert.equal(rows.find((row) => row.subject === 'SER').phone, '+');
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].subject, '');
+      assert.equal(rows[0].phone, '-');
       console.log(
-        'PostgreSQL: ID automatici, ricerca nomi, importazione Excel ripetibile e materie separate verificati.',
+        'PostgreSQL: ID automatici, ricerca nomi, importazione Excel ripetibile e registro unico verificati.',
       );
       throw rollback;
     });

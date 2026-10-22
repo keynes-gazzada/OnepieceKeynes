@@ -39,7 +39,7 @@ test('dreams are managed separately from multiverse entries', async ({ page }) =
   expect(register.status()).toBe(200);
   await page.goto('/');
   await expect(page.locator('.home-stories')).not.toContainText('Multiverso riservato al registro');
-  await page.goto('/narratore');
+  await page.goto('/narratore?classe=3CI&materia=TPSIT');
   await expect(page.locator('#sogni')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Gestisci sogni' })).toHaveCount(0);
   const headings = await page.locator('.registry-table th').allTextContents();
@@ -61,7 +61,7 @@ test('dreams are managed separately from multiverse entries', async ({ page }) =
   await dialog.getByRole('button', { name: /Chiudi/ }).click();
   await page.goto('/');
   await expect(page.locator('.home-stories')).toContainText('Il sogno aggiornato nella home');
-  await page.goto('/narratore');
+  await page.goto('/narratore?classe=3CI&materia=TPSIT');
   await dreamButton.click();
   await dialog
     .locator('article')
@@ -93,18 +93,28 @@ test('dreams are managed separately from multiverse entries', async ({ page }) =
   await dialog.getByRole('button', { name: /Chiudi/ }).click();
   await page.goto('/narratore?classe=3CI&materia=storico');
   await expect(page.getByRole('button', { name: 'Salva registro', exact: true })).toBeDisabled();
+  await page.getByLabel('Materia', { exact: true }).selectOption('TPSIT');
+  await expect(page.getByRole('button', { name: 'Salva registro', exact: true })).toBeEnabled();
   await dreamButton.click();
   await expect(dialog.getByLabel('Sogno', { exact: true })).toBeEnabled();
   await page.goto('/');
   await expect(page.locator('.home-stories')).toHaveCount(0);
   await expect(page.getByText('I primi sogni arriveranno presto.')).toHaveCount(0);
   // Restore the test's attendance entry so other registry tests start without this absence.
-  expect((await api.post('/api/admin/registry', {
-    data: { date: '2026-10-09', subject: 'TePi', rows: [{ user_id: 2, presence: 'P', phone: '' }] },
-  })).status()).toBe(200);
+  expect(
+    (
+      await api.post('/api/admin/registry', {
+        data: {
+          date: '2026-10-09',
+          subject: 'TePi',
+          rows: [{ user_id: 2, presence: 'P', phone: '' }],
+        },
+      })
+    ).status(),
+  ).toBe(200);
 });
 
-test('dream points update the register and rankings without duplicate or cross-subject points', async ({
+test('dream points update the register and rankings without duplicate points in the unified register', async ({
   page,
   browser,
 }) => {
@@ -134,7 +144,9 @@ test('dream points update the register and rankings without duplicate or cross-s
   const profile = await student.newPage();
   async function balance(subject: string) {
     await profile.goto(`http://localhost:3101/profilo?materia=${subject}`);
-    return Number((await profile.locator('.profile-balance > strong').innerText()).replace(/[^0-9-]/g, ''));
+    return Number(
+      (await profile.locator('.profile-balance > strong').innerText()).replace(/[^0-9-]/g, ''),
+    );
   }
   const base = await balance('TePi');
   const otherBase = await balance('SER');
@@ -155,7 +167,7 @@ test('dream points update the register and rankings without duplicate or cross-s
   await expect(card).toContainText('+2 punti');
   await expect(total).toHaveText(String(baseTotal + 2));
   expect(await balance('TePi')).toBe(base + 2);
-  expect(await balance('SER')).toBe(otherBase);
+  expect(await balance('SER')).toBe(otherBase + 2);
   for (const points of [4, 4, 0, 4]) {
     await card.getByRole('button', { name: /Modifica sogno/ }).click();
     await dialog.getByLabel('Punti sogno', { exact: true }).selectOption(String(points));

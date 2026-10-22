@@ -8,10 +8,10 @@ test('the rules are readable before signing in, including on a phone', async ({ 
   await expect(page.getByRole('table')).toHaveCount(2);
   await page
     .getByRole('navigation', { name: 'Indice delle regole' })
-    .getByRole('link', { name: 'Materie e classifiche' })
+    .getByRole('link', { name: 'Classifica', exact: true })
     .click();
   await expect(page).toHaveURL(/\/regole#classifiche$/);
-  await expect(page.getByRole('heading', { name: 'Materie e classifiche' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Classifica', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -41,7 +41,9 @@ test('registration blocks an email absent from the roster', async ({ page }) => 
   await page.locator('input[name="email"]').fill('s-nonpresente.altro@isiskeynes.it');
   await page.locator('input[name="password"]').fill('Student123!');
   await page.locator('input[name="confirm"]').fill('Student123!');
-  await expect(page.locator('.auth-form [role="alert"]')).toContainText('Non risulti nell’elenco degli studenti.');
+  await expect(page.locator('.auth-form [role="alert"]')).toContainText(
+    'Non risulti nell’elenco degli studenti.',
+  );
   await expect(page.getByRole('button', { name: 'Registrati', exact: true })).toBeDisabled();
   await expect(page.locator('input[name="first"]')).toHaveValue('');
 });
@@ -84,10 +86,15 @@ test('an administrator can sign in and open the narrator area', async ({ page })
   const classMenu = page.locator('.nav-classes-panel');
   await expect(classMenu).toBeVisible();
   await expect(classMenu.locator('.nav-class-group')).toHaveCount(3);
-  await expect(classMenu.getByRole('list', { name: 'Materie 3CI' })).toContainText('TPSIT');
-  await expect(classMenu.getByRole('list', { name: 'Materie 3CI' })).toContainText('SER');
-  await expect(classMenu.getByRole('list', { name: 'Materie 4CI' })).toContainText('TPSIT');
-  await expect(classMenu.getByRole('list', { name: 'Materie 4CI' })).toContainText('SER');
-  await expect(classMenu.getByRole('list', { name: 'Materie 5CI' })).toHaveText('TPSIT');
+  for (const classCode of ['3CI', '4CI', '5CI']) {
+    await expect(classMenu.getByRole('link', { name: classCode, exact: true })).toHaveAttribute(
+      'href',
+      `/narratore?classe=${classCode}`,
+    );
+  }
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Navigazione principale' })
+      .getByRole('link', { name: 'Classifica', exact: true }),
+  ).toBeVisible();
 });
-

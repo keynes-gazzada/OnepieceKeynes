@@ -34,13 +34,9 @@ export async function userById(id: number) {
   );
 }
 
-async function scoreInRange(userId: number, subject?: string, start?: string, end?: string) {
+async function scoreInRange(userId: number, start?: string, end?: string) {
   let filter = ' WHERE user_id=?';
   const values: SqlValue[] = [userId];
-  if (subject !== undefined) {
-    filter += ' AND subject=?';
-    values.push(subject);
-  }
   if (start && end) {
     filter += ' AND date BETWEEN ? AND ?';
     values.push(start, end);
@@ -65,17 +61,13 @@ async function scoreInRange(userId: number, subject?: string, start?: string, en
     daily.reduce((sum, row) => sum + dailyPoints(row), 0)
   );
 }
-export async function scoreFor(userId: number, subject?: string) {
-  return scoreInRange(userId, subject);
+export async function scoreFor(userId: number) {
+  return scoreInRange(userId);
 }
 
-async function rankedUsers(cls?: string, subject?: string, start?: string, end?: string) {
+async function rankedUsers(cls?: string, start?: string, end?: string) {
   const conditions: string[] = [];
   const values: SqlValue[] = [];
-  if (subject !== undefined) {
-    conditions.push('subject=?');
-    values.push(subject);
-  }
   if (start && end) {
     conditions.push('date BETWEEN ? AND ?');
     values.push(start, end);
@@ -89,7 +81,7 @@ async function rankedUsers(cls?: string, subject?: string, start?: string, end?:
     daily_totals AS (SELECT user_id,SUM(
       CASE presence WHEN 'A' THEN ${POINT_RULES.absence} WHEN 'A+' THEN ${POINT_RULES.absencePlus} ELSE 0 END +
       CASE phone WHEN '+' THEN ${POINT_RULES.phone} ELSE 0 END +
-      CASE WHEN bug<>0 THEN ${POINT_RULES.bug} ELSE 0 END + CASE WHEN anxiety<>0 THEN ${POINT_RULES.anxiety} ELSE 0 END +
+      bug * ${POINT_RULES.bug} + CASE WHEN anxiety<>0 THEN ${POINT_RULES.anxiety} ELSE 0 END +
       CASE WHEN mystery<>0 THEN ${POINT_RULES.mystery} ELSE 0 END + multiverse_points + fruit_points - imported_points_offset
     ) points FROM daily${filter} GROUP BY user_id)
     SELECT u.id,u.email,u.first_name,u.last_name,u.class_code,u.role,u.crew_id,u.roles,u.last_password_change,
@@ -109,14 +101,9 @@ async function rankedUsers(cls?: string, subject?: string, start?: string, end?:
     .sort((a, b) => b.score - a.score)
     .map((user, index) => ({ ...user, score: Number(user.score), position: index + 1 }));
 }
-export async function leaderboard(cls?: string, subject?: string) {
-  return rankedUsers(cls, subject);
+export async function leaderboard(cls?: string) {
+  return rankedUsers(cls);
 }
-export async function leaderboardForRange(
-  cls: string,
-  start: string,
-  end: string,
-  subject?: string,
-) {
-  return rankedUsers(cls, subject, start, end);
+export async function leaderboardForRange(cls: string, start: string, end: string) {
+  return rankedUsers(cls, start, end);
 }

@@ -1848,7 +1848,8 @@ textarea:focus {
   color: var(--op-red);
 }
 
-.admin-tile-title h2 {
+.admin-tile-title h2,
+.admin-tile-heading {
   font-family: var(--display);
   font-size: 27px;
   text-transform: uppercase;

@@ -38,7 +38,7 @@ export default async function Home() {
               </span>
               <span>della classe.</span>
             </h1>
-            <p>Consulta i punti, i voti e le classifiche di TPSIT e SER.</p>
+            <p>Consulta i punti, i voti e la classifica del registro unico.</p>
             <div className="hero-actions">
               {user ? (
                 <Link

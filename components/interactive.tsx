@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -18,26 +17,48 @@ import {
   Wind,
 } from 'lucide-react';
 import type { Crew } from '@/lib/db';
+import { navigateAfterAuth } from '@/lib/auth-navigation';
 import crewStyles from '@/app/home-crews.module.css';
 export function LogoutButton() {
-  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   return (
-    <button
-      className="logout-button"
-      title="Esci"
-      aria-label="Esci"
-      onClick={async () => {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{}',
-        });
-        router.push('/');
-        router.refresh();
-      }}
-    >
-      <LogOut size={18} />
-    </button>
+    <div className="logout-control">
+      <button
+        type="button"
+        className="logout-button"
+        title={busy ? 'Uscita in corso…' : 'Esci'}
+        aria-label="Esci"
+        aria-busy={busy}
+        disabled={busy}
+        onClick={async () => {
+          if (busy) return;
+          setBusy(true);
+          setError('');
+          try {
+            const response = await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: '{}',
+            });
+            if (!response.ok) throw new Error('Uscita non riuscita. Riprova.');
+            // Start a fresh document after changing the session cookie so shared
+            // layouts and prefetched routes cannot retain the previous account.
+            navigateAfterAuth('/');
+          } catch {
+            setError('Uscita non riuscita. Riprova.');
+            setBusy(false);
+          }
+        }}
+      >
+        <LogOut size={18} />
+      </button>
+      {error ? (
+        <p className="logout-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 export function CrewEmblem({
@@ -212,7 +233,6 @@ export function AuthForm({
   mode: 'login' | 'register' | 'create-admin' | 'forgot' | 'reset';
   token?: string;
 }) {
-  const router = useRouter();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const [error, setError] = useState(''),
@@ -293,14 +313,14 @@ export function AuthForm({
       } else if (mode === 'reset') {
         setSuccess('Password aggiornata. Ora puoi accedere.');
       } else {
-        router.push(data.role === 'admin' ? '/narratore' : '/profilo');
-        router.refresh();
+        // Authentication changes the root layout as well as the destination page.
+        navigateAfterAuth(data.role === 'admin' ? '/narratore' : '/profilo');
+        return;
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Operazione non riuscita.');
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   }
   return (
     <>

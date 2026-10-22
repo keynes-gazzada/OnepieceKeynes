@@ -7,7 +7,7 @@ export const POINT_RULES = {
   mystery: 2000,
   multiverse: 80,
 } as const;
-export const GRADE_MULTIPLIERS = { verifica: 200, progetto: 100, interrogazione: 15 } as const;
+export const GRADE_MULTIPLIERS = { verifica: 200, progetto: 100 } as const;
 export function presencePoints(value: string) {
   return value === 'A' ? POINT_RULES.absence : value === 'A+' ? POINT_RULES.absencePlus : 0;
 }
@@ -27,10 +27,11 @@ export function dailyPoints(row: {
   return (
     presencePoints(row.presence) +
     phonePoints(row.phone) +
-    (row.bug ? POINT_RULES.bug : 0) +
+    Number(row.bug) * POINT_RULES.bug +
     (row.anxiety ? POINT_RULES.anxiety : 0) +
     (row.mystery ? POINT_RULES.mystery : 0) +
     row.multiverse_points +
-    row.fruit_points - (row.imported_points_offset || 0)
+    row.fruit_points -
+    (row.imported_points_offset || 0)
   );
 }

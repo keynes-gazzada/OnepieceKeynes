@@ -7,7 +7,6 @@ import { LogoutButton } from '@/components/interactive';
 import { MotionEffects } from '@/components/motion-effects';
 import { NavigationMenu } from '@/components/navigation-menu';
 import { all } from '@/lib/database';
-import { classSubjects, subjectLabel } from '@/lib/subjects';
 import './fonts.css';
 import './globals.css';
 import './design-system.css';
@@ -43,6 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       ? [
           ['/', 'Home'],
           ['/narratore', 'Narratore'],
+          ['/viaggio', 'Classifica'],
         ]
       : user
         ? [
@@ -93,17 +93,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       {classes.map((cls) => (
                         <section className="nav-class-group" key={cls}>
                           <Link href={`/narratore?classe=${encodeURIComponent(cls)}`}>{cls}</Link>
-                          <ul aria-label={`Materie ${cls}`}>
-                            {(classSubjects[cls] || []).map((subject) => (
-                              <li key={subject}>
-                                <Link
-                                  href={`/narratore?classe=${encodeURIComponent(cls)}&materia=${encodeURIComponent(subject)}`}
-                                >
-                                  {subjectLabel(subject)}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
                         </section>
                       ))}
                     </div>

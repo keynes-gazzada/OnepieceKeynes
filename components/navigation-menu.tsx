@@ -2,12 +2,43 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
+import { AUTH_REVISION_KEY, authRevision } from '@/lib/auth-navigation';
 
 export function NavigationMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const navigation = performance.getEntriesByType('navigation')[0] as
+      PerformanceNavigationTiming | undefined;
+    // History can restore an old HTML response without using the page cache.
+    if (navigation?.type === 'back_forward') {
+      window.location.reload();
+      return;
+    }
+    const revision = authRevision();
+    function syncSession() {
+      if (authRevision() !== revision) window.location.reload();
+    }
+    function restore(event: PageTransitionEvent) {
+      // A document restored from browser history may belong to an old session.
+      if (event.persisted) window.location.reload();
+      else syncSession();
+    }
+    function storage(event: StorageEvent) {
+      if (event.key === AUTH_REVISION_KEY) syncSession();
+    }
+    window.addEventListener('pageshow', restore);
+    window.addEventListener('popstate', syncSession);
+    window.addEventListener('storage', storage);
+    return () => {
+      window.removeEventListener('pageshow', restore);
+      window.removeEventListener('popstate', syncSession);
+      window.removeEventListener('storage', storage);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -52,8 +83,7 @@ export function NavigationMenu({ children }: { children: ReactNode }) {
         id={id}
         data-open={open}
         onClick={(event) => {
-          if (event.target instanceof Element && event.target.closest('a, .logout-button'))
-            setOpen(false);
+          if (event.target instanceof Element && event.target.closest('a')) setOpen(false);
         }}
       >
         {children}

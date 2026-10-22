@@ -6,7 +6,6 @@ import { CrewEmblem, Modal } from './interactive';
 import { StudentBounty } from './student-bounty';
 import type { Crew, Daily, Grade, PointEvent, User } from '@/lib/db';
 import { studentPortraitUrl } from '@/lib/student-portraits';
-import { subjectLabel } from '@/lib/subjects';
 import { dailyPoints } from '@/lib/point-rules';
 import styles from './crew-members.module.css';
 const format = (n: number) => new Intl.NumberFormat('it-IT').format(n);
@@ -21,7 +20,6 @@ export function ProfilePanels({
   rank,
   crew,
   members,
-  scoreSubject,
   grades,
   pointEvents,
   daily,
@@ -33,7 +31,6 @@ export function ProfilePanels({
   rank: number;
   crew: Crew | null;
   members: (User & { score: number })[];
-  scoreSubject: string;
   grades: Grade[];
   pointEvents: PointEvent[];
   daily: Daily[];
@@ -48,7 +45,7 @@ export function ProfilePanels({
   );
   const used = new Set(
     ['Poseidon', 'Pluton', 'Uranus'].filter((name) => {
-      const lastUse = periodDaily.find((d) => d.weapon === name);
+      const lastUse = periodDaily.find((d) => d.weapon.split(', ').includes(name));
       return lastUse && !periodDaily.some((d) => d.mystery && d.date >= lastUse.date);
     }),
   );
@@ -155,10 +152,8 @@ export function ProfilePanels({
                   <tr key={`d${d.id}`}>
                     <td>{new Date(d.date).toLocaleDateString('it-IT')}</td>
                     <td>{d.date.slice(0, 4)}</td>
-                    <td>Giornata · {subjectLabel(d.subject) || 'Registro precedente'}</td>
-                    <td>
-                      {dailyPoints(d)}
-                    </td>
+                    <td>Giornata</td>
+                    <td>{dailyPoints(d)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -172,9 +167,7 @@ export function ProfilePanels({
             <CrewEmblem flag={crew?.flag} name={crew?.name} size="large" />
             <h3>{crew?.name || 'Senza ciurma'}</h3>
           </div>
-          {members.length ? (
-            <p className={styles.caption}>Punteggio attuale · {scoreSubject}</p>
-          ) : null}
+          {members.length ? <p className={styles.caption}>Punteggio attuale</p> : null}
           {members.length ? (
             <div className={`member-list ${styles.list}`}>
               {members.map((m) => {

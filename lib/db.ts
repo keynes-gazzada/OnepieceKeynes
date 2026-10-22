@@ -244,7 +244,7 @@ function seed(d: DatabaseSync) {
     for (const [id, grade, type] of [
       [u, 8.5, 'verifica'],
       [v, 7.5, 'progetto'],
-      [w, 9, 'interrogazione'],
+      [w, 9, 'progetto'],
     ] as const)
       d.prepare('INSERT INTO grades(user_id,date,type,grade,points) VALUES(?,?,?,?,?)').run(
         id,
@@ -313,43 +313,30 @@ export function userById(id: number) {
     id,
   );
 }
-export function scoreFor(userId: number, subject?: string) {
-  const filter = subject === undefined ? '' : ' AND subject=?';
-  const args = subject === undefined ? [] : [subject];
+export function scoreFor(userId: number) {
   const g =
-    one<{ s: number }>(
-      'SELECT COALESCE(SUM(points),0) s FROM grades WHERE user_id=?' + filter,
-      userId,
-      ...args,
-    )?.s || 0;
+    one<{ s: number }>('SELECT COALESCE(SUM(points),0) s FROM grades WHERE user_id=?', userId)?.s ||
+    0;
   const imported =
-    one<{ s: number }>(
-      'SELECT COALESCE(SUM(points),0) s FROM point_events WHERE user_id=?' + filter,
-      userId,
-      ...args,
-    )?.s || 0;
-  const rows = all<Daily>('SELECT * FROM daily WHERE user_id=?' + filter, userId, ...args);
+    one<{ s: number }>('SELECT COALESCE(SUM(points),0) s FROM point_events WHERE user_id=?', userId)
+      ?.s || 0;
+  const rows = all<Daily>('SELECT * FROM daily WHERE user_id=?', userId);
   const dreams =
-    one<{ s: number }>(
-      'SELECT COALESCE(SUM(points),0) s FROM dreams WHERE user_id=?' + filter,
-      userId,
-      ...args,
-    )?.s || 0;
+    one<{ s: number }>('SELECT COALESCE(SUM(points),0) s FROM dreams WHERE user_id=?', userId)?.s ||
+    0;
   return g + imported + dreams + rows.reduce((s, r) => s + dailyPoints(r), 0);
 }
-export function leaderboard(cls?: string, subject?: string) {
+export function leaderboard(cls?: string) {
   const users = all<User>(
     `SELECT id,email,first_name,last_name,class_code,role,crew_id,roles,last_password_change FROM users WHERE role='student' ${cls ? 'AND class_code=?' : ''}`,
     ...(cls ? [cls] : []),
   );
   return users
-    .map((u) => ({ ...u, score: scoreFor(u.id, subject) }))
+    .map((u) => ({ ...u, score: scoreFor(u.id) }))
     .sort((a, b) => b.score - a.score)
     .map((u, i) => ({ ...u, position: i + 1 }));
 }
-export function leaderboardForRange(cls: string, start: string, end: string, subject?: string) {
-  const filter = subject === undefined ? '' : ' AND subject=?';
-  const args = subject === undefined ? [] : [subject];
+export function leaderboardForRange(cls: string, start: string, end: string) {
   const users = all<User>(
     "SELECT id,email,first_name,last_name,class_code,role,crew_id,roles,last_password_change FROM users WHERE role='student' AND class_code=?",
     cls,
@@ -358,28 +345,23 @@ export function leaderboardForRange(cls: string, start: string, end: string, sub
     .map((u) => {
       const grades =
         one<{ s: number }>(
-          'SELECT COALESCE(SUM(points),0) s FROM grades WHERE user_id=? AND date BETWEEN ? AND ?' +
-            filter,
+          'SELECT COALESCE(SUM(points),0) s FROM grades WHERE user_id=? AND date BETWEEN ? AND ?',
           u.id,
           start,
           end,
-          ...args,
         )?.s || 0;
       const imported =
         one<{ s: number }>(
-          'SELECT COALESCE(SUM(points),0) s FROM point_events WHERE user_id=? AND date BETWEEN ? AND ?' +
-            filter,
+          'SELECT COALESCE(SUM(points),0) s FROM point_events WHERE user_id=? AND date BETWEEN ? AND ?',
           u.id,
           start,
           end,
-          ...args,
         )?.s || 0;
       const daily = all<Daily>(
-        'SELECT * FROM daily WHERE user_id=? AND date BETWEEN ? AND ?' + filter,
+        'SELECT * FROM daily WHERE user_id=? AND date BETWEEN ? AND ?',
         u.id,
         start,
         end,
-        ...args,
       );
       return {
         ...u,
@@ -387,12 +369,10 @@ export function leaderboardForRange(cls: string, start: string, end: string, sub
           grades +
           imported +
           (one<{ s: number }>(
-            'SELECT COALESCE(SUM(points),0) s FROM dreams WHERE user_id=? AND date BETWEEN ? AND ?' +
-              filter,
+            'SELECT COALESCE(SUM(points),0) s FROM dreams WHERE user_id=? AND date BETWEEN ? AND ?',
             u.id,
             start,
             end,
-            ...args,
           )?.s || 0) +
           daily.reduce((sum, row) => sum + dailyPoints(row), 0),
       };

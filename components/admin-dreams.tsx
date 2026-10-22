@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { Modal } from './interactive';
 import type { User } from '@/lib/registry-core';
-import { subjectLabel } from '@/lib/subjects';
 
 export type Dream = {
   id: number;
@@ -10,9 +9,8 @@ export type Dream = {
   text: string;
   points: number;
   date: string;
-  subject: string;
 };
-type DreamDraft = { id?: number; text: string; points: number; date: string; subject: string };
+type DreamDraft = { id?: number; text: string; points: number; date: string };
 
 export function AdminDreams({
   student,
@@ -20,17 +18,15 @@ export function AdminDreams({
   onChange,
   onClose,
   date,
-  subject,
 }: {
   student: User;
   dreams: Dream[];
   onChange: (dreams: Dream[]) => void;
   onClose: () => void;
   date: string;
-  subject: string;
 }) {
   const studentDreams = dreams.filter((dream) => dream.user_id === student.id);
-  const newDraft = () => ({ text: '', points: 0, date, subject });
+  const newDraft = () => ({ text: '', points: 0, date });
   const [draft, setDraft] = useState<DreamDraft | null>(studentDreams.length ? null : newDraft());
   const [deleting, setDeleting] = useState<Dream | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,10 +85,7 @@ export function AdminDreams({
           <strong>{author}</strong>
         </p>
         <p>La frase sarà pubblicata nel Dream Log della home.</p>
-        <p>
-          Punti assegnati al {draft.date.split('-').reverse().join('/')} ·{' '}
-          {subjectLabel(draft.subject) || 'Registro precedente'}.
-        </p>
+        <p>Punti assegnati al {draft.date.split('-').reverse().join('/')} · Registro unico.</p>
         <form
           className="auth-form"
           onSubmit={async (e) => {
@@ -174,9 +167,7 @@ export function AdminDreams({
             <p style={{ whiteSpace: 'pre-wrap' }}>{dream.text}</p>
             <small>
               {dream.points ? `+${dream.points}` : '0'} punti
-              {dream.date
-                ? ` · ${dream.date.split('-').reverse().join('/')} · ${subjectLabel(dream.subject) || 'Registro precedente'}`
-                : ''}
+              {dream.date ? ` · ${dream.date.split('-').reverse().join('/')} · Registro unico` : ''}
             </small>
             <div className="hero-actions">
               <button
@@ -189,7 +180,6 @@ export function AdminDreams({
                     text: dream.text,
                     points: dream.points,
                     date: dream.date || date,
-                    subject: dream.date ? dream.subject : subject,
                   });
                 }}
               >

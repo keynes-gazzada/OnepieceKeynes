@@ -6,7 +6,7 @@ export function importedRegistry(events: { user_id: number; type: string; points
     {
       presence: string;
       phone: string;
-      bug: boolean;
+      bug: number;
       anxiety: boolean;
       mystery: boolean;
       multiverse: string;
@@ -33,7 +33,7 @@ export function importedRegistry(events: { user_id: number; type: string; points
     const row = (result[event.user_id] ||= {
       presence: 'P',
       phone: '',
-      bug: false,
+      bug: 0,
       anxiety: false,
       mystery: false,
       multiverse: '',
@@ -46,12 +46,12 @@ export function importedRegistry(events: { user_id: number; type: string; points
       row.presence = 'A+';
     else if (kind === 'assenza' && row.presence !== 'A+') row.presence = 'A';
     if (kind === 'telefono') row.phone = '+';
-    if (kind === 'bug') row.bug = true;
+    if (kind === 'bug') row.bug += 1;
     if (kind === 'ansia') row.anxiety = true;
     if (kind === 'mistero') row.mystery = true;
     if (kind === 'multiverso') {
       row.multiverse = 'Importato da Excel';
-      row.multiverse_points = POINT_RULES.multiverse;
+      row.multiverse_points += POINT_RULES.multiverse;
     }
   }
   // Imported events remain the source of their exact historical amounts. The hydrated
