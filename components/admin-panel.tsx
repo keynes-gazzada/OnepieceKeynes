@@ -1,12 +1,10 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  CalendarDays,
-  Check,
   CloudUpload,
   FileSpreadsheet,
   Plus,
@@ -14,19 +12,28 @@ import {
   Settings2,
   ShipWheel,
   Users,
-  X,
   Trash2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
-import Link from 'next/link';
 import {
   dailyPoints as dayPoints,
   presencePoints,
   phonePoints,
-  POINT_RULES,
-  GRADE_MULTIPLIERS,
+  DEFAULT_SCORING,
+  type ScoringSettings,
 } from '@/lib/point-rules';
-import { AuthForm, Modal } from './interactive';
-import { AdminDreams, type Dream } from './admin-dreams';
+import { AuthForm, Modal, CrewEmblem } from './interactive';
+import { MultiverseEntries } from './multiverse-entries';
+import { ClueAward } from './clue-award';
+import {
+  BulkGrades,
+  StudentPointsDialog,
+  UserEditor,
+  RouteCreator,
+  ScoringDialog,
+} from './admin-management';
+type Dream = { id: number; user_id: number; date: string; points: number };
 import type { Crew, Daily, Grade, Mystery, Route, User } from '@/lib/db';
 import { registrySubject } from '@/lib/registry-lessons';
 type Row = {
@@ -34,7 +41,7 @@ type Row = {
   presence: string;
   phone: string;
   bug: number;
-  anxiety: boolean;
+  anxiety: number;
   mystery: boolean;
   weapon: string;
   multiverse: string;
@@ -47,7 +54,7 @@ const makeRow = (u: User): Row => ({
   presence: 'P',
   phone: '+',
   bug: 0,
-  anxiety: false,
+  anxiety: 0,
   mystery: false,
   weapon: '',
   multiverse: '',
@@ -64,8 +71,8 @@ const registryColumns = [
   ['anxiety', 'Ansia'],
   ['mystery', 'Mistero'],
   ['multiverse', 'Multiverso'],
-  ['dream', 'Sogno'],
   ['grades', 'Voti'],
+  ['clue', 'Indizio'],
   ['day', 'Totale giornata'],
   ['total', 'Totale punti'],
 ] as const;
@@ -93,7 +100,7 @@ function updateRegistryURL(classCode: string, date?: string, subject?: string) {
 }
 export function AdminPanel({
   users,
-  narrators,
+  narrators: initialNarrators,
   crews,
   routes,
   mysteries,
@@ -101,6 +108,7 @@ export function AdminPanel({
   initialClass,
   initialDate,
   initialSubject,
+  settings = DEFAULT_SCORING,
 }: {
   users: User[];
   narrators: User[];
@@ -111,13 +119,21 @@ export function AdminPanel({
   initialClass: string;
   initialDate?: string;
   initialSubject?: string;
+  settings?: ScoringSettings;
 }) {
   const [members, setMembers] = useState(users);
+  const membersRef = useRef(members);
+  membersRef.current = members;
+  const [narrators, setNarrators] = useState(initialNarrators);
+  const POINT_RULES = settings.daily;
+  const [scoringOpen, setScoringOpen] = useState(false);
+  const [bulkGradesOpen, setBulkGradesOpen] = useState(false);
+  const [pointsStudent, setPointsStudent] = useState<User | null>(null);
+  const [clueStudent, setClueStudent] = useState<User | null>(null);
   const [adminCreationOpen, setAdminCreationOpen] = useState(false);
-  const [managedDreams, setManagedDreams] = useState(dreams);
-  const [dreamStudentId, setDreamStudentId] = useState<number | null>(null);
-  const dreamStudent = users.find((u) => u.id === dreamStudentId);
+  const managedDreams = dreams;
   const [secrets, setSecrets] = useState(mysteries);
+  const [visibleSecretIds, setVisibleSecretIds] = useState<Set<number>>(() => new Set());
   const [newMystery, setNewMystery] = useState({ title: '', description: '' });
   const [date, setDate] = useState(() => initialDate || new Date().toLocaleDateString('en-CA'));
   const [subject, setSubject] = useState(() => registrySubject(initialSubject) || '');
@@ -130,12 +146,14 @@ export function AdminPanel({
   const [roleDrafts, setRoleDrafts] = useState<Record<number, string>>({});
   const [managementMessage, setManagementMessage] = useState('');
   const [managementBusy, setManagementBusy] = useState(false);
+  const [roleSaveError, setRoleSaveError] = useState(false);
   const [mysteryMessage, setMysteryMessage] = useState('');
   const [deletingMystery, setDeletingMystery] = useState<Mystery | null>(null);
   const [mysteryBusy, setMysteryBusy] = useState(false);
   const [loadedKey, setLoadedKey] = useState('');
   const [totals, setTotals] = useState<Record<number, number>>({});
   const [importedPoints, setImportedPoints] = useState<Record<number, number>>({});
+  const [clueCounts, setClueCounts] = useState<Record<number, number>>({});
   const [otherDailyPoints, setOtherDailyPoints] = useState<Record<number, number>>({});
   const [totalsLoadedKey, setTotalsLoadedKey] = useState('');
   const [totalsRevision, setTotalsRevision] = useState(0);
@@ -151,14 +169,17 @@ export function AdminPanel({
   const totalsKey = `${loadKey}:${totalsRevision}`;
   const registryReady = !!cls && !!subject && loadedKey === loadKey;
   const registryWritable = registryReady;
-  const [modal, setModal] = useState<'upload' | 'multiverse' | 'grade' | 'users' | 'routes' | null>(
-      null,
-    ),
+  const [modal, setModal] = useState<
+      'upload' | 'multiverse' | 'grade' | 'users' | 'routes' | 'mysteries' | null
+    >(null),
     [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
     [routeNames, setRouteNames] = useState<Record<number, string>>({}),
     [routeDates, setRouteDates] = useState<Record<number, { start: string; end: string }>>({});
+  const [dirtyIds, setDirtyIds] = useState<Set<number>>(() => new Set());
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoError, setAutoError] = useState('');
   const classes = [
     ...new Set(
       [...members.map((u) => u.class_code), ...managedRoutes.map((r) => r.class_code)].filter(
@@ -181,7 +202,7 @@ export function AdminPanel({
         if (!live) return;
         const saved = new Map<number, Daily>((data.daily || []).map((d: Daily) => [d.user_id, d]));
         setRows(
-          users.map((u) => {
+          membersRef.current.map((u) => {
             const r = saved.get(u.id);
             return r
               ? {
@@ -189,7 +210,7 @@ export function AdminPanel({
                   presence: r.presence,
                   phone: r.phone === '+' ? '+' : '',
                   bug: Number(r.bug),
-                  anxiety: !!r.anxiety,
+                  anxiety: Number(r.anxiety),
                   mystery: !!r.mystery,
                   weapon: r.weapon,
                   multiverse: r.multiverse,
@@ -202,6 +223,7 @@ export function AdminPanel({
         );
         setGrades(data.grades || []);
         setImportedPoints(data.importedPoints || {});
+        setClueCounts(data.clueCounts || {});
         setOtherDailyPoints(data.otherDailyPoints || {});
         setLoadedKey(loadKey);
       })
@@ -211,7 +233,14 @@ export function AdminPanel({
     return () => {
       live = false;
     };
-  }, [date, cls, subject, users, loadKey]);
+  }, [date, cls, subject, loadKey]);
+  useEffect(() => {
+    setRows((old) => {
+      const present = new Set(old.map((row) => row.user_id));
+      const added = members.filter((user) => !present.has(user.id));
+      return added.length ? [...old, ...added.map(makeRow)] : old;
+    });
+  }, [members]);
   useEffect(() => {
     let live = true;
     fetch(`/api/data?date=${date}&totalsOnly=1`)
@@ -265,28 +294,26 @@ export function AdminPanel({
       case 'weapon':
         return row.weapon;
       case 'presence':
-        return presencePoints(row.presence);
+        return presencePoints(row.presence, POINT_RULES);
       case 'phone':
-        return phonePoints(row.phone);
+        return phonePoints(row.phone, POINT_RULES);
       case 'bug':
         return row.bug * POINT_RULES.bug;
       case 'anxiety':
-        return row.anxiety ? POINT_RULES.anxiety : 0;
+        return row.anxiety * POINT_RULES.anxiety;
       case 'mystery':
         return row.mystery ? POINT_RULES.mystery : 0;
+      case 'clue':
+        return clueCounts[user.id] || 0;
       case 'multiverse':
         return row.multiverse_points;
-      case 'dream':
-        return managedDreams
-          .filter((dream) => dream.user_id === user.id && dream.date === date)
-          .reduce((sum, dream) => sum + dream.points, 0);
       case 'grades':
         return grades
           .filter((grade) => grade.user_id === user.id)
           .reduce((sum, grade) => sum + grade.points, 0);
       case 'day':
         return (
-          dayPoints(row) +
+          dayPoints(row, POINT_RULES) +
           (otherDailyPoints[user.id] ?? 0) +
           (importedPoints[user.id] ?? 0) +
           grades
@@ -329,133 +356,139 @@ export function AdminPanel({
     }));
   }
   function change(id: number, patch: Partial<Row>) {
-    setRows((old) => old.map((r) => (r.user_id === id ? { ...r, ...patch } : r)));
+    const member = members.find((user) => user.id === id);
+    const ids =
+      patch.mystery !== undefined && member?.crew_id
+        ? members.filter((user) => user.crew_id === member.crew_id).map((user) => user.id)
+        : [id];
+    setRows((old) => old.map((r) => (ids.includes(r.user_id) ? { ...r, ...patch } : r)));
+    setDirtyIds((old) => new Set([...old, ...ids]));
+    setAutoError('');
   }
+  useEffect(() => {
+    if (!registryReady || !dirtyIds.size || autoSaving || autoError) return;
+    const timer = window.setTimeout(async () => {
+      const snapshot = new Set(dirtyIds);
+      const payload = rows.filter((row) => snapshot.has(row.user_id));
+      setDirtyIds((current) => new Set([...current].filter((id) => !snapshot.has(id))));
+      setAutoSaving(true);
+      try {
+        await post('registry', { date, subject, rows: payload });
+        setTotalsRevision((revision) => revision + 1);
+      } catch (error) {
+        setDirtyIds((current) => new Set([...current, ...snapshot]));
+        setAutoError(
+          error instanceof Error ? error.message : 'Salvataggio automatico non riuscito.',
+        );
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [rows, dirtyIds, autoSaving, autoError, registryReady, date, subject]);
+  useEffect(() => {
+    if (!dirtyIds.size && !autoSaving) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    const guardLink = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!link) return;
+      const destination = new URL(link.getAttribute('href') || '', window.location.href);
+      if (
+        destination.pathname === window.location.pathname &&
+        destination.search === window.location.search &&
+        destination.hash
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMessage('Attendi il completamento del salvataggio automatico prima di cambiare pagina.');
+    };
+    window.addEventListener('beforeunload', warn);
+    document.addEventListener('click', guardLink, true);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      document.removeEventListener('click', guardLink, true);
+    };
+  }, [dirtyIds, autoSaving]);
+  useEffect(() => {
+    if (managementBusy || roleSaveError) return;
+    const changed = members.find((member) => {
+      const draft = roleDrafts[member.id];
+      return draft !== undefined && !!draft.trim() && draft.trim() !== member.roles;
+    });
+    if (!changed) return;
+    const role = roleDrafts[changed.id].trim();
+    const timer = window.setTimeout(async () => {
+      setManagementBusy(true);
+      try {
+        await post('role', { user_id: changed.id, role });
+        setMembers((old) =>
+          old.map((member) => (member.id === changed.id ? { ...member, roles: role } : member)),
+        );
+        setManagementMessage('Ruolo salvato automaticamente.');
+      } catch (error) {
+        setRoleSaveError(true);
+        setManagementMessage(`Salvataggio del ruolo non riuscito: ${(error as Error).message}`);
+      } finally {
+        setManagementBusy(false);
+      }
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [roleDrafts, members, managementBusy, roleSaveError]);
   const active = rows.find((r) => r.user_id === selected);
-  async function save() {
-    if (!registryWritable || busy) return;
-    setBusy(true);
-    setMessage('');
+  async function refreshScores() {
+    setTotalsRevision((r) => r + 1);
     try {
-      await post('registry', {
-        date,
-        subject,
-        rows: filtered.map((u) => rows.find((r) => r.user_id === u.id)),
-      });
-      const crewIds = new Set(
-        filtered
-          .filter((u) => rows.find((r) => r.user_id === u.id)?.mystery && u.crew_id)
-          .map((u) => u.crew_id),
-      );
-      setRows((old) =>
-        old.map((r) =>
-          crewIds.has(members.find((u) => u.id === r.user_id)?.crew_id || null)
-            ? { ...r, mystery: true }
-            : r,
-        ),
-      );
-      setMessage(
-        `Registro ${cls}${subject ? ` · ${subject}` : ''} salvato. Le taglie sono aggiornate.`,
-      );
-      setTotalsRevision((revision) => revision + 1);
+      const response = await fetch(`/api/data?date=${date}&subject=${encodeURIComponent(subject)}`);
+      if (!response.ok) throw new Error('Impossibile aggiornare i punteggi.');
+      const data = await response.json();
+      setGrades(data.grades || []);
+      setImportedPoints(data.importedPoints || {});
+      setClueCounts(data.clueCounts || {});
+      setOtherDailyPoints(data.otherDailyPoints || {});
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Errore nel salvataggio.');
-    } finally {
-      setBusy(false);
+      setMessage((e as Error).message);
     }
   }
   return (
     <>
-      <div className="admin-toolbar">
-        <div className="admin-filters">
-          <label>
-            Data
-            <input
-              type="date"
-              disabled={busy}
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value);
-                updateRegistryURL(cls, e.target.value);
-                setLoadedKey('');
-                setMessage('');
-                setModal(null);
-              }}
-            />
-          </label>
-          <label>
-            Classe
-            <select
-              aria-label="Classe"
-              value={cls}
-              disabled={busy}
-              onChange={(e) => {
-                setCls(e.target.value);
-                updateRegistryURL(e.target.value);
-                setRouteYear('');
-                setLoadedKey('');
-                setMessage('');
-                setModal(null);
-                setCrew('');
-              }}
-            >
-              <option value="">Seleziona una classe</option>
-              {classes.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Materia
-            <select
-              aria-label="Materia"
-              required
-              value={subject}
-              disabled={busy}
-              onChange={(e) => {
-                setSubject(e.target.value);
-                updateRegistryURL(cls, date, e.target.value);
-                setLoadedKey('');
-                setMessage('');
-                setModal(null);
-              }}
-            >
-              <option value="" disabled>
-                Seleziona una materia
-              </option>
-              <option value="TPSIT">TPSIT</option>
-              <option value="SER">SER</option>
-            </select>
-          </label>
-          <label>
-            Ciurma
-            <select
-              aria-label="Ciurma"
-              value={crew}
-              disabled={!cls}
-              onChange={(e) => setCrew(e.target.value)}
-            >
-              <option value="">Tutte le ciurme</option>
-              {crews
-                .filter((c) => c.class_code === cls)
-                .map((c) => (
-                  <option value={c.id} key={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
-        <Link className="button outline" href="/viaggio">
-          Classifica di tutte le classi
-        </Link>
-        <button className="button outline" onClick={() => setAdminCreationOpen(true)}>
-          <Plus size={17} /> Nuovo admin
-        </button>
-        <button className="button outline" onClick={() => setModal('upload')}>
-          <CloudUpload size={17} /> Upload .xlsx
-        </button>
-      </div>
+      {scoringOpen ? (
+        <ScoringDialog
+          settings={settings}
+          onClose={() => setScoringOpen(false)}
+          onSaved={() => window.location.reload()}
+        />
+      ) : null}
+      {bulkGradesOpen ? (
+        <BulkGrades
+          users={members.filter((user) => user.class_code === cls).sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, 'it'))}
+          date={date}
+          settings={settings}
+          onClose={() => setBulkGradesOpen(false)}
+          onSaved={refreshScores}
+        />
+      ) : null}
+      {pointsStudent ? (
+        <StudentPointsDialog
+          student={pointsStudent}
+          date={date}
+          admin
+          onClose={() => setPointsStudent(null)}
+          onChanged={refreshScores}
+        />
+      ) : null}
+      {clueStudent ? (
+        <ClueAward
+          studentId={clueStudent.id}
+          studentName={`${clueStudent.first_name} ${clueStudent.last_name}`}
+          crewName={crews.find((crew) => crew.id === clueStudent.crew_id)?.name || ''}
+          date={date}
+          onClose={() => setClueStudent(null)}
+          onSaved={refreshScores}
+        />
+      ) : null}
       {adminCreationOpen ? (
         <Modal title="Nuovo admin" onClose={() => setAdminCreationOpen(false)}>
           <p>Crea un account Narratore per un docente. La classe non è richiesta.</p>
@@ -484,9 +517,18 @@ export function AdminPanel({
               <strong>{n}</strong>
             </span>
           ))}
-          <span className="admin-tile-cta">
-            Visualizza dettagli <ArrowRight size={16} />
+        </button>
+        <button
+          type="button"
+          className="admin-tile admin-tile-trigger"
+          aria-label="Punteggi"
+          onClick={() => setScoringOpen(true)}
+        >
+          <span className="admin-tile-title">
+            <Settings2 size={19} />
+            <span className="admin-tile-heading">Punteggi</span>
           </span>
+          <span className="tile-hint">Configura i punti e i moltiplicatori.</span>
         </button>
         <button
           type="button"
@@ -527,17 +569,22 @@ export function AdminPanel({
                   <span>
                     {u.first_name} {u.last_name}
                   </span>
-                  <input
+                  <select
                     aria-label={`Ruolo di ${u.first_name} ${u.last_name}`}
-                    list="crew-role-options"
-                    maxLength={120}
                     value={roleDrafts[u.id] ?? u.roles}
-                    onChange={(e) => setRoleDrafts((old) => ({ ...old, [u.id]: e.target.value }))}
-                  />
+                    onChange={(e) => {
+                      setRoleSaveError(false);
+                      setRoleDrafts((old) => ({ ...old, [u.id]: e.target.value }));
+                    }}
+                  >
+                    {!(roleDrafts[u.id] ?? u.roles) ? <option value="">Seleziona un ruolo</option> : null}
+                    {(roleDrafts[u.id] ?? u.roles) && !['Capitano', 'Navigatore', 'Carpentiere', 'Medico', 'Cecchino'].includes(roleDrafts[u.id] ?? u.roles) ? <option value={roleDrafts[u.id] ?? u.roles}>{roleDrafts[u.id] ?? u.roles} (precedente)</option> : null}
+                    {['Capitano', 'Navigatore', 'Carpentiere', 'Medico', 'Cecchino'].map((role) => <option key={role} value={role}>{role}</option>)}
+                  </select>
                   <button
                     type="button"
                     aria-label={`Salva ruolo di ${u.first_name} ${u.last_name}`}
-                    disabled={managementBusy || !(roleDrafts[u.id] ?? u.roles).trim()}
+                    disabled={managementBusy || !['Capitano', 'Navigatore', 'Carpentiere', 'Medico', 'Cecchino'].includes((roleDrafts[u.id] ?? u.roles).trim())}
                     onClick={async () => {
                       setManagementBusy(true);
                       try {
@@ -561,11 +608,6 @@ export function AdminPanel({
                   </button>
                 </div>
               ))}
-              <datalist id="crew-role-options">
-                {['Capitano', 'Navigatore', 'Archeologo', 'Equipaggio'].map((role) => (
-                  <option key={role} value={role} />
-                ))}
-              </datalist>
               {crew ? (
                 <select
                   aria-label="Assegna pirata alla ciurma"
@@ -597,24 +639,23 @@ export function AdminPanel({
             </div>
           )}
         </section>
+        <button
+          type="button"
+          className="admin-tile admin-tile-trigger mystery-tile"
+          aria-label="Misteri"
+          onClick={() => setModal('mysteries')}
+        >
+          <span className="admin-tile-title">
+            <EyeOff size={19} />
+            <span className="admin-tile-heading">Misteri</span>
+          </span>
+          <span className="tile-hint">Gestisci misteri e indizi.</span>
+        </button>
       </div>
       {managementMessage ? (
         <p role="status" className="admin-message">
           {managementMessage}
         </p>
-      ) : null}
-      {dreamStudent ? (
-        <AdminDreams
-          key={dreamStudent.id}
-          student={dreamStudent}
-          date={date}
-          dreams={managedDreams}
-          onChange={(updated) => {
-            setManagedDreams(updated);
-            setTotalsRevision((revision) => revision + 1);
-          }}
-          onClose={() => setDreamStudentId(null)}
-        />
       ) : null}
       <section className="registry-section">
         <div className="registry-heading">
@@ -633,11 +674,103 @@ export function AdminPanel({
               {subject || 'Materia da selezionare'}
             </p>
           </div>
-          <button className="button gold" onClick={save} disabled={busy || !registryWritable}>
-            <Save size={17} />
-            {busy ? 'Salvataggio…' : 'Salva registro'}
-          </button>
+          <label>
+            Materia della lezione{' '}
+            <select
+              aria-label="Materia"
+              required
+              value={subject}
+              disabled={busy || autoSaving || dirtyIds.size > 0}
+              onChange={(e) => {
+                setSubject(e.target.value);
+                updateRegistryURL(cls, date, e.target.value);
+                setLoadedKey('');
+                setMessage('');
+                setModal(null);
+              }}
+            >
+              <option value="" disabled>
+                Seleziona una materia
+              </option>
+              <option value="TPSIT">TPSIT</option>
+              <option value="SER">SER</option>
+            </select>
+          </label>
+          <label>
+            Ciurma{' '}
+            <select
+              aria-label="Ciurma"
+              value={crew}
+              disabled={!cls}
+              onChange={(event) => setCrew(event.target.value)}
+            >
+              <option value="">Tutte le ciurme</option>
+              {crews
+                .filter((item) => item.class_code === cls)
+                .map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </select>
+          </label>
         </div>
+        <div className="admin-toolbar">
+        <div className="admin-filters">
+          <strong>Filtri</strong>
+          <label>
+            Data
+            <input
+              type="date"
+              disabled={busy || autoSaving || dirtyIds.size > 0}
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+                updateRegistryURL(cls, e.target.value);
+                setLoadedKey('');
+                setMessage('');
+                setModal(null);
+              }}
+            />
+          </label>
+          <label>
+            Classe
+            <select
+              aria-label="Classe"
+              value={cls}
+              disabled={busy || autoSaving || dirtyIds.size > 0}
+              onChange={(e) => {
+                setCls(e.target.value);
+                updateRegistryURL(e.target.value);
+                setRouteYear('');
+                setLoadedKey('');
+                setMessage('');
+                setModal(null);
+                setCrew('');
+              }}
+            >
+              <option value="">Seleziona una classe</option>
+              {classes.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+        <p aria-live="polite" className="admin-message">
+          {autoError ? (
+            <>
+              Salvataggio automatico non riuscito: {autoError}{' '}
+              <button type="button" onClick={() => setAutoError('')}>
+                Riprova
+              </button>
+            </>
+          ) : autoSaving || dirtyIds.size ? (
+            'Salvataggio automatico in corso…'
+          ) : (
+            'Le modifiche al registro vengono salvate automaticamente.'
+          )}
+        </p>
         {message ? (
           <p role="status" className="admin-message">
             {message}
@@ -648,10 +781,7 @@ export function AdminPanel({
         </p>
         {!cls ? <p>Seleziona una classe per compilare il registro.</p> : null}
         {cls && !subject ? <p>Seleziona una materia per compilare il registro.</p> : null}
-        <fieldset
-          disabled={busy || !registryWritable}
-          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
-        >
+        <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="table-wrap registry-table">
             <table>
               <thead>
@@ -690,6 +820,18 @@ export function AdminPanel({
                           <ArrowUpDown size={13} aria-hidden="true" />
                         )}
                       </button>
+                      {key === 'grades' ? (
+                        <button
+                          type="button"
+                          className="registry-grade-action"
+                          aria-label="Inserisci voti della classe"
+                          title="Inserisci voti della classe"
+                          disabled={!cls || !filtered.length || !registryReady}
+                          onClick={() => setBulkGradesOpen(true)}
+                        >
+                          <Plus size={16} aria-hidden="true" />
+                        </button>
+                      ) : null}
                       {key === 'presence' || key === 'phone' ? (
                         <input
                           type="checkbox"
@@ -726,6 +868,8 @@ export function AdminPanel({
                                 ids.has(row.user_id) ? { ...row, [key]: value } : row,
                               ),
                             );
+                            setDirtyIds((old) => new Set([...old, ...ids]));
+                            setAutoError('');
                           }}
                         />
                       ) : null}
@@ -750,20 +894,45 @@ export function AdminPanel({
                         </strong>
                         <small>{u.class_code}</small>
                       </td>
-                      <td>{crews.find((c) => c.id === u.crew_id)?.name || '—'}</td>
                       <td>
-                        <select
-                          aria-label={`Arma di ${u.first_name}`}
+                        {(() => {
+                          const c = crews.find((c) => c.id === u.crew_id);
+                          return c ? (
+                            <span className="registry-crew">
+                              <CrewEmblem flag={c.flag} name={c.name} />
+                              <span>{c.name}</span>
+                            </span>
+                          ) : (
+                            '—'
+                          );
+                        })()}
+                      </td>
+                      <td>
+                        <fieldset
+                          className="registry-weapons"
                           disabled={busy || !registryWritable}
-                          value={r.weapon}
-                          onChange={(e) => change(u.id, { weapon: e.target.value })}
+                          aria-label={`Armi di ${u.first_name}`}
                         >
-                          <option value="">—</option>
-                          {r.weapon.includes(', ') ? <option>{r.weapon}</option> : null}
-                          {['Poseidon', 'Pluton', 'Uranus'].map((x) => (
-                            <option key={x}>{x}</option>
+                          {['Poseidon', 'Pluton', 'Uranus'].map((weapon) => (
+                            <label key={weapon}>
+                              <input
+                                type="checkbox"
+                                checked={r.weapon.split(', ').includes(weapon)}
+                                onChange={(event) => {
+                                  const selected = new Set(r.weapon ? r.weapon.split(', ') : []);
+                                  if (event.target.checked) selected.add(weapon);
+                                  else selected.delete(weapon);
+                                  change(u.id, {
+                                    weapon: ['Poseidon', 'Pluton', 'Uranus']
+                                      .filter((item) => selected.has(item))
+                                      .join(', '),
+                                  });
+                                }}
+                              />
+                              {weapon}
+                            </label>
                           ))}
-                        </select>
+                        </fieldset>
                       </td>
                       <td>
                         <select
@@ -777,7 +946,9 @@ export function AdminPanel({
                             <option key={x}>{x}</option>
                           ))}
                         </select>
-                        <small className="points-chip">{presencePoints(r.presence)}</small>
+                        <small className="points-chip">
+                          {presencePoints(r.presence, POINT_RULES)}
+                        </small>
                       </td>
                       <td>
                         <select
@@ -810,20 +981,33 @@ export function AdminPanel({
                         />
                         <small className="points-chip">+{r.bug * POINT_RULES.bug}</small>
                       </td>
-                      {(['anxiety', 'mystery'] as const).map((k) => (
-                        <td key={k}>
-                          <input
-                            type="checkbox"
-                            disabled={busy || !registryWritable}
-                            aria-label={`${k} di ${u.first_name}`}
-                            checked={r[k]}
-                            onChange={(e) => change(u.id, { [k]: e.target.checked })}
-                          />
-                          <small className="points-chip">
-                            {r[k] ? `${POINT_RULES[k] > 0 ? '+' : ''}${POINT_RULES[k]}` : '0'}
-                          </small>
-                        </td>
-                      ))}
+                      <td>
+                        <input
+                          disabled={busy || !registryWritable}
+                          type="number"
+                          min="0"
+                          max="1000000"
+                          step="1"
+                          aria-label={`Ansia di ${u.first_name}`}
+                          value={r.anxiety}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            if (Number.isSafeInteger(n) && n >= 0 && n <= 1000000)
+                              change(u.id, { anxiety: n });
+                          }}
+                        />
+                        <small className="points-chip">{r.anxiety * POINT_RULES.anxiety}</small>
+                      </td>
+                      <td>
+                        <input
+                          disabled={busy || !registryWritable}
+                          type="checkbox"
+                          aria-label={`mystery di ${u.first_name}`}
+                          checked={r.mystery}
+                          onChange={(e) => change(u.id, { mystery: e.target.checked })}
+                        />
+                        <small className="points-chip">{r.mystery ? POINT_RULES.mystery : 0}</small>
+                      </td>
                       <td>
                         <button
                           className="table-action"
@@ -837,18 +1021,7 @@ export function AdminPanel({
                         </button>
                         <small className="points-chip">+{r.multiverse_points}</small>
                       </td>
-                      <td>
-                        <button
-                          className="table-action"
-                          aria-label={`Sogni di ${u.first_name} ${u.last_name}`}
-                          onClick={() => setDreamStudentId(u.id)}
-                        >
-                          {managedDreams.some((dream) => dream.user_id === u.id)
-                            ? 'Dettagli'
-                            : 'Aggiungi'}
-                        </button>
-                        <small className="points-chip">+{dreamPoints}</small>
-                      </td>
+
                       <td>
                         <button
                           className="table-action"
@@ -863,10 +1036,21 @@ export function AdminPanel({
                         <small className="points-chip">+{gradeSum}</small>
                       </td>
                       <td>
+                        <button
+                          type="button"
+                          className="table-action"
+                          disabled={!registryWritable || !u.crew_id}
+                          aria-label={`Indizi di ${u.first_name} ${u.last_name}`}
+                          onClick={() => setClueStudent(u)}
+                        >
+                          {clueCounts[u.id] ? `${clueCounts[u.id]} indizi` : 'Assegna'}
+                        </button>
+                      </td>
+                      <td>
                         <strong title="Punti della giornata, comprese le modifiche non ancora salvate">
                           {registryReady
                             ? new Intl.NumberFormat('it-IT').format(
-                                dayPoints(r) +
+                                dayPoints(r, POINT_RULES) +
                                   gradeSum +
                                   dreamPoints +
                                   (importedPoints[u.id] ?? 0) +
@@ -876,11 +1060,19 @@ export function AdminPanel({
                         </strong>
                       </td>
                       <td>
-                        <strong title="Saldo complessivo salvato">
-                          {totalsLoadedKey === totalsKey
-                            ? new Intl.NumberFormat('it-IT').format(totals[u.id] ?? 0)
-                            : '—'}
-                        </strong>
+                        <button
+                          type="button"
+                          className="table-action"
+                          aria-label={`Dettaglio punti di ${u.first_name} ${u.last_name}`}
+                          onClick={() => setPointsStudent(u)}
+                        >
+                          <Eye size={15} />
+                          <strong>
+                            {totalsLoadedKey === totalsKey
+                              ? new Intl.NumberFormat('it-IT').format(totals[u.id] ?? 0)
+                              : '—'}
+                          </strong>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -890,134 +1082,155 @@ export function AdminPanel({
           </div>
         </fieldset>
       </section>
-      <section className="admin-mysteries">
-        <div className="section-heading left">
-          <span className="section-index">Controllo del narratore</span>
-          <h2>Misteri</h2>
-        </div>
-        <div className="mystery-toggle-list">
-          {secrets.map((m) => (
-            <div className="mystery-admin-card" key={m.id}>
-              <strong>{m.title}</strong>
-              <button
-                type="button"
-                className="table-action"
-                disabled={mysteryBusy}
-                aria-label={`Elimina mistero ${m.title}`}
-                onClick={() => {
-                  setMysteryMessage('');
-                  setDeletingMystery(m);
-                }}
-              >
-                <Trash2 size={15} /> Elimina
-              </button>
-              <label>
-                <input
-                  type="checkbox"
-                  disabled={mysteryBusy}
-                  checked={!!m.revealed}
-                  onChange={async (e) => {
-                    const revealed = e.target.checked;
-                    setMysteryBusy(true);
-                    try {
-                      await post('mystery', { id: m.id, revealed });
-                      setMysteryMessage(revealed ? 'Mistero svelato.' : 'Mistero nascosto.');
-                      setSecrets((old) =>
-                        old.map((item) =>
-                          item.id === m.id ? { ...item, revealed: Number(revealed) } : item,
-                        ),
-                      );
-                    } catch (err) {
-                      setMysteryMessage((err as Error).message);
-                    } finally {
-                      setMysteryBusy(false);
+      {modal === 'mysteries' ? (
+        <Modal title="Misteri" onClose={() => setModal(null)}>
+          <section className="admin-mysteries" id="admin-mysteries">
+            <div className="mystery-toggle-list">
+              {secrets.map((m) => (
+                <div className="mystery-admin-card" key={m.id}>
+                  <strong>{visibleSecretIds.has(m.id) ? m.title : '••••••••'}</strong>
+                  <button
+                    type="button"
+                    className="table-action"
+                    aria-label={`${visibleSecretIds.has(m.id) ? 'Nascondi' : 'Mostra'} testo mistero ${m.title}`}
+                    onClick={() =>
+                      setVisibleSecretIds((old) => {
+                        const next = new Set(old);
+                        if (next.has(m.id)) next.delete(m.id);
+                        else next.add(m.id);
+                        return next;
+                      })
                     }
-                  }}
-                />
-                Svelato
-              </label>
-              <div className="admin-clues" aria-label={`Indizi di ${m.title}`}>
-                {(JSON.parse(m.clues) as boolean[]).map((found, index) => (
-                  <label key={index}>
-                    <input
-                      type="checkbox"
-                      disabled={mysteryBusy}
-                      checked={found}
-                      onChange={async (e) => {
-                        const next = [...(JSON.parse(m.clues) as boolean[])];
-                        next[index] = e.target.checked;
-                        setMysteryBusy(true);
-                        try {
-                          await post('mystery-clue', { id: m.id, index, found: next[index] });
-                          setMysteryMessage('Indizio aggiornato.');
-                          setSecrets((old) =>
-                            old.map((item) =>
-                              item.id === m.id ? { ...item, clues: JSON.stringify(next) } : item,
-                            ),
-                          );
-                        } catch (err) {
-                          setMysteryMessage((err as Error).message);
-                        } finally {
-                          setMysteryBusy(false);
-                        }
-                      }}
-                    />
-                    Indizio {index + 1}
-                  </label>
-                ))}
-              </div>
+                  >
+                    {visibleSecretIds.has(m.id) ? <EyeOff size={16} /> : <Eye size={16} />}{' '}
+                    {visibleSecretIds.has(m.id) ? 'Nascondi testo' : 'Mostra testo'}
+                  </button>
+                  <button
+                    type="button"
+                    className="table-action"
+                    disabled={mysteryBusy}
+                    aria-label={`Elimina mistero ${m.title}`}
+                    onClick={() => {
+                      setMysteryMessage('');
+                      setDeletingMystery(m);
+                    }}
+                  >
+                    <Trash2 size={15} /> Elimina
+                  </button>
+                  <button
+                    type="button"
+                    className="table-action"
+                    aria-label={`${m.revealed ? 'Nascondi' : 'Mostra'} mistero ${m.title}`}
+                    aria-pressed={!!m.revealed}
+                    disabled={mysteryBusy}
+                    onClick={async () => {
+                      setMysteryBusy(true);
+                      setMysteryMessage('');
+                      try {
+                        await post('mystery', { id: m.id, revealed: !m.revealed });
+                        setSecrets((old) =>
+                          old.map((item) =>
+                            item.id === m.id ? { ...item, revealed: m.revealed ? 0 : 1 } : item,
+                          ),
+                        );
+                      } catch (e) {
+                        setMysteryMessage((e as Error).message);
+                      } finally {
+                        setMysteryBusy(false);
+                      }
+                    }}
+                  >
+                    {m.revealed ? <Eye size={17} /> : <EyeOff size={17} />}
+                    {m.revealed ? 'Visibile agli studenti' : 'Nascosto agli studenti'}
+                  </button>
+                  <div className="admin-clues" aria-label={`Indizi di ${m.title}`}>
+                    {(JSON.parse(m.clues) as boolean[]).map((found, index) => (
+                      <label key={index}>
+                        <input
+                          type="checkbox"
+                          disabled={mysteryBusy}
+                          checked={found}
+                          onChange={async (e) => {
+                            const next = [...(JSON.parse(m.clues) as boolean[])];
+                            next[index] = e.target.checked;
+                            setMysteryBusy(true);
+                            try {
+                              await post('mystery-clue', { id: m.id, index, found: next[index] });
+                              setMysteryMessage('Indizio aggiornato.');
+                              setSecrets((old) =>
+                                old.map((item) =>
+                                  item.id === m.id
+                                    ? { ...item, clues: JSON.stringify(next) }
+                                    : item,
+                                ),
+                              );
+                            } catch (err) {
+                              setMysteryMessage((err as Error).message);
+                            } finally {
+                              setMysteryBusy(false);
+                            }
+                          }}
+                        />
+                        Indizio {index + 1}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <form
-          className="mystery-create"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setMysteryBusy(true);
-            try {
-              const result = await post('mystery-create', newMystery);
-              setSecrets((old) => [
-                ...old,
-                {
-                  id: result.id,
-                  title: newMystery.title,
-                  description: newMystery.description,
-                  revealed: 0,
-                  clues: '[false,false,false,false]',
-                },
-              ]);
-              setNewMystery({ title: '', description: '' });
-              setMysteryMessage('Mistero aggiunto.');
-            } catch (err) {
-              setMysteryMessage((err as Error).message);
-            } finally {
-              setMysteryBusy(false);
-            }
-          }}
-        >
-          <input
-            aria-label="Titolo nuovo mistero"
-            placeholder="Titolo del nuovo mistero"
-            value={newMystery.title}
-            onChange={(e) => setNewMystery((old) => ({ ...old, title: e.target.value }))}
-            required
-          />
-          <input
-            aria-label="Descrizione nuovo mistero"
-            placeholder="Breve descrizione"
-            value={newMystery.description}
-            onChange={(e) => setNewMystery((old) => ({ ...old, description: e.target.value }))}
-          />
-          <button className="button outline" type="submit" disabled={mysteryBusy}>
-            <Plus size={16} /> Aggiungi mistero
-          </button>
-        </form>
-        {mysteryMessage ? (
-          <p role="status" className="admin-message">
-            {mysteryMessage}
-          </p>
-        ) : null}
-      </section>
+            <form
+              className="mystery-create"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setMysteryBusy(true);
+                try {
+                  const result = await post('mystery-create', newMystery);
+                  setSecrets((old) => [
+                    ...old,
+                    {
+                      id: result.id,
+                      title: newMystery.title,
+                      description: newMystery.description,
+                      revealed: 0,
+                      clues: '[false,false,false,false]',
+                    },
+                  ]);
+                  setNewMystery({ title: '', description: '' });
+                  setMysteryMessage('Mistero aggiunto.');
+                } catch (err) {
+                  setMysteryMessage((err as Error).message);
+                } finally {
+                  setMysteryBusy(false);
+                }
+              }}
+            >
+              <input
+                aria-label="Titolo nuovo mistero"
+                type="password"
+                placeholder="Titolo del nuovo mistero"
+                value={newMystery.title}
+                onChange={(e) => setNewMystery((old) => ({ ...old, title: e.target.value }))}
+                required
+              />
+              <input
+                aria-label="Descrizione nuovo mistero"
+                type="password"
+                placeholder="Breve descrizione"
+                value={newMystery.description}
+                onChange={(e) => setNewMystery((old) => ({ ...old, description: e.target.value }))}
+              />
+              <button className="button outline" type="submit" disabled={mysteryBusy}>
+                <Plus size={16} /> Aggiungi mistero
+              </button>
+            </form>
+            {mysteryMessage ? (
+              <p role="status" className="admin-message">
+                {mysteryMessage}
+              </p>
+            ) : null}
+          </section>
+        </Modal>
+      ) : null}
       {deletingMystery ? (
         <Modal
           title="Elimina mistero"
@@ -1051,6 +1264,15 @@ export function AdminPanel({
       {modal === 'users' ? (
         <Modal title="Dettagli utenti" onClose={() => setModal(null)}>
           <div className="admin-detail-panel">
+            <button
+              className="button outline"
+              onClick={() => {
+                setModal(null);
+                setAdminCreationOpen(true);
+              }}
+            >
+              <Plus size={17} /> Nuovo admin
+            </button>
             <p>
               {cls ? 'Studenti di ' + cls : 'Studenti di tutte le classi'}
               {crew ? ' · ' + (crews.find((item) => item.id === Number(crew))?.name || '') : ''} e
@@ -1098,7 +1320,19 @@ export function AdminPanel({
                         </div>
                         <div>
                           <dt>Ciurma</dt>
-                          <dd>{crews.find((item) => item.id === member.crew_id)?.name || '—'}</dd>
+                          <dd>
+                            {(() => {
+                              const c = crews.find((item) => item.id === member.crew_id);
+                              return c ? (
+                                <span className="registry-crew">
+                                  <CrewEmblem flag={c.flag} name={c.name} />
+                                  <span>{c.name}</span>
+                                </span>
+                              ) : (
+                                '—'
+                              );
+                            })()}
+                          </dd>
                         </div>
                         <div>
                           <dt>Ruolo</dt>
@@ -1111,6 +1345,19 @@ export function AdminPanel({
                           <dd>{registered ? member.email : 'Non ancora registrato'}</dd>
                         </div>
                       </dl>
+                      <UserEditor
+                        user={member}
+                        crews={crews}
+                        onChange={(updated) => {
+                          const setter = updated.role === 'admin' ? setNarrators : setMembers;
+                          setter((old) => old.map((u) => (u.id === updated.id ? updated : u)));
+                        }}
+                        onDelete={(id) => {
+                          setMembers((old) => old.filter((u) => u.id !== id));
+                          setNarrators((old) => old.filter((u) => u.id !== id));
+                          setTotalsRevision((r) => r + 1);
+                        }}
+                      />
                     </li>
                   );
                 })}
@@ -1167,6 +1414,17 @@ export function AdminPanel({
                     ))}
                   </select>
                 </label>
+                <RouteCreator
+                  key={routeClass}
+                  classCode={routeClass}
+                  onCreated={(route) => {
+                    setManagedRoutes((old) =>
+                      [...old, route].sort((a, b) => a.year - b.year || a.ordinal - b.ordinal),
+                    );
+                    setRouteYear('');
+                    setRouteMessage('Rotta creata.');
+                  }}
+                />
                 <div className="route-editor">
                   {managedRoutes
                     .filter(
@@ -1271,157 +1529,66 @@ export function AdminPanel({
       ) : null}
       {modal === 'multiverse' && active ? (
         <Modal title="Inserimento multiverso" onClose={() => setModal(null)}>
-          <p>Annota il multiverso della giornata e assegna i punti.</p>
-          <label className="modal-field">
-            Data
-            <input type="date" value={date} readOnly />
-          </label>
-          <label className="modal-field">
-            Multiverso
-            <textarea
-              value={active.multiverse}
-              onChange={(e) => change(active.user_id, { multiverse: e.target.value })}
-              rows={5}
-              placeholder="Scrivi il multiverso o la nota…"
-            />
-          </label>
-          <label className="modal-field">
-            Numero di multiversi
-            <input
-              type="number"
-              min="0"
-              step="1"
-              max="1000000"
-              value={active.multiverse_points / POINT_RULES.multiverse}
-              onChange={(e) => {
-                const count = Number(e.target.value);
-                if (Number.isSafeInteger(count) && count >= 0 && count <= 1000000)
-                  change(active.user_id, { multiverse_points: count * POINT_RULES.multiverse });
-              }}
-            />
-            <small>+{active.multiverse_points} punti</small>
-          </label>
-          <button className="button navy" onClick={() => setModal(null)}>
-            Conferma
-          </button>
+          <MultiverseEntries
+            studentId={active.user_id}
+            initialDate={date}
+            points={POINT_RULES.multiverse}
+            onChanged={refreshScores}
+          />
+          <details className="management-form">
+            <summary>Registrazione giornaliera precedente</summary>
+            <label className="modal-field">
+              Data
+              <input type="date" value={date} readOnly />
+            </label>
+            <label className="modal-field">
+              Multiverso
+              <textarea
+                value={active.multiverse}
+                onChange={(e) => change(active.user_id, { multiverse: e.target.value })}
+                rows={5}
+                placeholder="Scrivi il multiverso o la nota…"
+              />
+            </label>
+            <label className="modal-field">
+              Numero di multiversi
+              <input
+                type="number"
+                min="0"
+                step="1"
+                max={Math.min(1000000, Math.floor(2000000000 / POINT_RULES.multiverse))}
+                value={active.multiverse_points / POINT_RULES.multiverse}
+                onChange={(e) => {
+                  const count = Number(e.target.value);
+                  if (
+                    Number.isSafeInteger(count) &&
+                    count >= 0 &&
+                    count <= 1000000 &&
+                    count * POINT_RULES.multiverse <= 2000000000
+                  )
+                    change(active.user_id, { multiverse_points: count * POINT_RULES.multiverse });
+                }}
+              />
+              <small>+{active.multiverse_points} punti</small>
+            </label>
+            <button className="button navy" onClick={() => setModal(null)}>
+              Conferma
+            </button>
+          </details>
         </Modal>
       ) : null}
-      {modal === 'grade' && selected ? (
-        <GradeModal
+      {modal === 'grade' && selected && members.find((u) => u.id === selected) ? (
+        <StudentPointsDialog
+          student={members.find((u) => u.id === selected)!}
           date={date}
-          userId={selected}
-          grades={grades.filter((g) => g.user_id === selected)}
-          onAdd={(g) => {
-            setGrades((old) => [...old, g]);
-            setTotalsRevision((revision) => revision + 1);
-          }}
+          admin
+          initialTab="grades"
           onClose={() => setModal(null)}
+          onChanged={refreshScores}
         />
       ) : null}
       {modal === 'upload' ? <UploadModal onClose={() => setModal(null)} /> : null}
     </>
-  );
-}
-function GradeModal({
-  date,
-  userId,
-  grades,
-  onAdd,
-  onClose,
-}: {
-  date: string;
-  userId: number;
-  grades: Grade[];
-  onAdd: (g: Grade) => void;
-  onClose: () => void;
-}) {
-  const [type, setType] = useState('verifica'),
-    [grade, setGrade] = useState('6'),
-    [error, setError] = useState(''),
-    [busy, setBusy] = useState(false);
-  const options = Array.from({ length: 17 }, (_, i) => 2 + i * 0.5);
-  return (
-    <Modal title="Inserimento voti" onClose={onClose}>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Tipologia</th>
-              <th>Voto</th>
-              <th>Punti</th>
-            </tr>
-          </thead>
-          <tbody>
-            {grades.map((g) => (
-              <tr key={g.id}>
-                <td>{g.date}</td>
-                <td>{g.type}</td>
-                <td>{g.grade}</td>
-                <td>{g.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="grade-form">
-        <label>
-          Data
-          <input type="date" value={date} readOnly />
-        </label>
-        <label>
-          Tipologia
-          <select value={type} onChange={(e) => setType(e.target.value)}>
-            <option>verifica</option>
-            <option>progetto</option>
-          </select>
-        </label>
-        <label>
-          Voto
-          <select value={grade} onChange={(e) => setGrade(e.target.value)}>
-            {options.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <strong>
-          {Math.round(Number(grade) * GRADE_MULTIPLIERS[type as 'verifica' | 'progetto'])} punti
-        </strong>
-      </div>
-      {error ? <p className="form-error">{error}</p> : null}
-      <button
-        className="button navy"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            const result = await post('grade', {
-              user_id: userId,
-              date,
-              type,
-              grade: Number(grade),
-            });
-            onAdd({
-              id: Date.now(),
-              user_id: userId,
-              date,
-              type,
-              grade: Number(grade),
-              points: result.points,
-            });
-            setError('');
-          } catch (e) {
-            setError((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <Plus size={16} /> Aggiungi voto
-      </button>
-    </Modal>
   );
 }
 function UploadModal({ onClose }: { onClose: () => void }) {

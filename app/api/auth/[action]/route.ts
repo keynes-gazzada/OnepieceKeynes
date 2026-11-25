@@ -29,6 +29,8 @@ export async function POST(
     const email = str('email').toLowerCase();
     const password = str('password');
     if (!email || !password) return fail('Inserisci mail e password.');
+    if (email.endsWith('@demo.local') && process.env.ENABLE_DEMO_DATA !== 'true')
+      return fail('Mail o password errate.', 401);
     const u = await one<{ id: number; salt: string; password_hash: string; role: string }>(
       'SELECT id,salt,password_hash,role FROM users WHERE email=?',
       email,

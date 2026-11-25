@@ -86,7 +86,7 @@ function db() {
   return database;
 }
 function seed(d: DatabaseSync) {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.ENABLE_DEMO_DATA === 'true') {
     if ((d.prepare('SELECT COUNT(*) as n FROM crews').get() as { n: number }).n === 0) {
       for (const [name, cls, flag] of [
         ['Pirati dell’Aurora', '3CI', 'sun'],
@@ -170,7 +170,7 @@ function seed(d: DatabaseSync) {
       d,
     );
   if (
-    process.env.NODE_ENV !== 'production' &&
+    process.env.ENABLE_DEMO_DATA === 'true' &&
     !d.prepare("SELECT id FROM users WHERE email='narratore@demo.local'").get()
   ) {
     const a = createUser(
@@ -253,6 +253,35 @@ function seed(d: DatabaseSync) {
         grade,
         grade * GRADE_MULTIPLIERS[type],
       );
+  }
+  if (
+    process.env.ENABLE_DEMO_DATA === 'true' &&
+    process.env.ENABLE_STUDENT_PREVIEW === 'true' &&
+    !d.prepare("SELECT id FROM users WHERE email='prova.studente@demo.local'").get()
+  ) {
+    const crew = d
+      .prepare("SELECT id FROM crews WHERE class_code='3CI' ORDER BY id LIMIT 1")
+      .get() as { id: number } | undefined;
+    const student = createUser(
+      {
+        email: 'prova.studente@demo.local',
+        password: 'ProvaStudente2026!',
+        first: 'Studente',
+        last: 'Prova',
+        classCode: '3CI',
+        role: 'student',
+        crewId: crew?.id,
+        roles: 'Equipaggio',
+      },
+      d,
+    );
+    d.prepare('INSERT INTO grades(user_id,date,type,grade,points) VALUES(?,?,?,?,?)').run(
+      student,
+      new Date().toISOString().slice(0, 10),
+      'verifica',
+      8,
+      8 * GRADE_MULTIPLIERS.verifica,
+    );
   }
 }
 export function createUser(

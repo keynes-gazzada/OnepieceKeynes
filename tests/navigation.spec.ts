@@ -5,18 +5,18 @@ for (const width of [375, 900]) {
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Navigazione principale' });
-    await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toBeHidden();
+    await expect(nav.getByRole('link', { name: 'Accedi / Registrati', exact: true })).toBeVisible();
     await nav.getByRole('button', { name: 'Apri menu' }).click();
     await expect(nav.getByRole('button', { name: 'Chiudi menu' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
-    await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Accedi / Registrati', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(nav.getByRole('button', { name: 'Apri menu' })).toBeFocused();
-    await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toBeHidden();
+    await expect(nav.getByRole('link', { name: 'Accedi / Registrati', exact: true })).toBeVisible();
     await nav.getByRole('button', { name: 'Apri menu' }).click();
-    await nav.getByRole('link', { name: 'Accedi', exact: true }).click();
+    await nav.getByRole('link', { name: 'Accedi / Registrati', exact: true }).click();
     await expect(page).toHaveURL(/\/accedi$/);
     await expect(nav.getByRole('button', { name: 'Apri menu' })).toHaveAttribute(
       'aria-expanded',
@@ -24,11 +24,11 @@ for (const width of [375, 900]) {
     );
     await page.setViewportSize({ width: 1280, height: 900 });
     await expect(nav.getByRole('button', { name: 'Apri menu' })).toBeHidden();
-    await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Accedi / Registrati', exact: true })).toBeVisible();
   });
 }
 
-test('the mobile narrator menu includes classes, the unified ranking and sign out', async ({
+test('the mobile narrator menu includes rankings and sign out without a classes submenu', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
@@ -41,13 +41,10 @@ test('the mobile narrator menu includes classes, the unified ranking and sign ou
   await expect(nav.getByRole('button', { name: 'Esci', exact: true })).toBeHidden();
   await nav.getByRole('button', { name: 'Apri menu' }).click();
   await expect(nav.getByRole('button', { name: 'Esci', exact: true })).toBeVisible();
-  await nav.locator('.nav-classes summary').click();
-  await nav.getByRole('link', { name: '4CI', exact: true }).click();
-  await expect(page).toHaveURL(/\/narratore\?classe=4CI$/);
-  await expect(nav.getByRole('button', { name: 'Apri menu' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
+  await expect(nav.locator('.nav-classes')).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Classifiche', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Classe', { exact: true }).selectOption('4CI');
   await expect(
     page.getByRole('heading', { name: 'Registro punti · 4CI', exact: true }),
   ).toBeVisible();
@@ -82,7 +79,7 @@ for (const width of [1440, 375]) {
     ]) {
       await openMenu();
       await expect(nav.locator('.nav-user')).toHaveCount(0);
-      await nav.getByRole('link', { name: 'Accedi', exact: true }).click();
+      await nav.getByRole('link', { name: 'Accedi / Registrati', exact: true }).click();
       await page.locator('input[name="email"]').fill(account.email);
       await page.locator('input[name="password"]').fill('Demo1234!');
       await page.getByRole('button', { name: 'Accedi', exact: true }).click();
@@ -90,7 +87,9 @@ for (const width of [1440, 375]) {
       await openMenu();
       await expect(nav.locator('.nav-user')).toContainText(account.name);
       await expect(nav.getByRole('link', { name: account.link, exact: true })).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toHaveCount(0);
+      await expect(nav.getByRole('link', { name: 'Accedi / Registrati', exact: true })).toHaveCount(
+        0,
+      );
       if (width === 1440) {
         await page.goBack();
         await expect(nav.locator('.nav-user')).toContainText(account.name);
@@ -106,7 +105,9 @@ for (const width of [1440, 375]) {
       await expect(nav.locator('.nav-user')).toHaveCount(0);
       await expect(page).toHaveURL('/');
       await openMenu();
-      await expect(nav.getByRole('link', { name: 'Accedi', exact: true })).toBeVisible();
+      await expect(
+        nav.getByRole('link', { name: 'Accedi / Registrati', exact: true }),
+      ).toBeVisible();
       await expect(nav.getByRole('link', { name: account.link, exact: true })).toHaveCount(0);
       if (width < 1025) await page.keyboard.press('Escape');
     }
@@ -160,7 +161,9 @@ test('other open tabs update their navbar when the session changes', async ({ pa
     await expect(otherNav.locator('.nav-user')).toContainText('Nami Rossi');
     await page.getByRole('button', { name: 'Esci', exact: true }).click();
     await expect(otherNav.locator('.nav-user')).toHaveCount(0);
-    await expect(otherNav.getByRole('link', { name: 'Accedi', exact: true })).toBeVisible();
+    await expect(
+      otherNav.getByRole('link', { name: 'Accedi / Registrati', exact: true }),
+    ).toBeVisible();
   } finally {
     await other.close();
   }

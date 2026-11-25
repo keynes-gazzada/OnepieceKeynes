@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev:student-preview": "node scripts/student-preview.mjs",
     "build": "next build",
     "start": "next start",
     "import:punti": "node scripts/import-punti.mjs",

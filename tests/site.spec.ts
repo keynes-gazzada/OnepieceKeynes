@@ -80,21 +80,12 @@ test('an administrator can sign in and open the narrator area', async ({ page })
   await page.getByRole('button', { name: 'Accedi' }).click();
 
   await expect(page).toHaveURL(/\/narratore$/);
-  await expect(page.getByRole('heading', { name: 'Registro punti', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Narratore', exact: true })).toBeVisible();
 
-  await page.locator('.nav-classes summary').click();
-  const classMenu = page.locator('.nav-classes-panel');
-  await expect(classMenu).toBeVisible();
-  await expect(classMenu.locator('.nav-class-group')).toHaveCount(3);
-  for (const classCode of ['3CI', '4CI', '5CI']) {
-    await expect(classMenu.getByRole('link', { name: classCode, exact: true })).toHaveAttribute(
-      'href',
-      `/narratore?classe=${classCode}`,
-    );
-  }
+  await expect(page.locator('.nav-classes')).toHaveCount(0);
   await expect(
     page
       .getByRole('navigation', { name: 'Navigazione principale' })
-      .getByRole('link', { name: 'Classifica', exact: true }),
+      .getByRole('link', { name: 'Classifiche', exact: true }),
   ).toBeVisible();
 });

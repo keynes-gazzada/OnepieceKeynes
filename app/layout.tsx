@@ -2,11 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { currentUser } from '@/lib/auth';
-import { ChevronDown, Github, Mail, MapPin } from 'lucide-react';
+import { Github, Mail, MapPin } from 'lucide-react';
 import { LogoutButton } from '@/components/interactive';
 import { MotionEffects } from '@/components/motion-effects';
 import { NavigationMenu } from '@/components/navigation-menu';
-import { all } from '@/lib/database';
 import './fonts.css';
 import './globals.css';
 import './design-system.css';
@@ -16,47 +15,34 @@ import './navigation.css';
 import './rules.css';
 import './page-details.css';
 import './powers.css';
+import './admin-management.css';
+import './planning.css';
 export const metadata: Metadata = {
   title: { default: 'Keynes Grand Line · J. M. Keynes', template: '%s · Keynes Grand Line' },
   description: 'La Grand Line dei punti del J. M. Keynes: ciurme, taglie, rotte e sfide.',
 };
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
-  const classes =
-    user?.role === 'admin'
-      ? [
-          ...new Set([
-            '3CI',
-            '4CI',
-            '5CI',
-            ...(
-              await all<{ class_code: string }>(
-                "SELECT class_code FROM (SELECT class_code FROM routes UNION SELECT class_code FROM users) WHERE class_code<>'' ORDER BY class_code",
-              )
-            ).map((x) => x.class_code),
-          ]),
-        ].sort()
-      : [];
   const links =
     user?.role === 'admin'
       ? [
           ['/', 'Home'],
+          ['/viaggio', 'Classifiche'],
+          ['/regole', 'Regole'],
           ['/narratore', 'Narratore'],
-          ['/viaggio', 'Classifica'],
+          ['/planning', 'Planning'],
         ]
       : user
         ? [
             ['/', 'Home'],
+            ['/viaggio', 'Classifiche'],
             ['/profilo', 'Profilo'],
-            ['/viaggio', 'Classifica'],
             ['/rotte', 'Grand Line'],
             ['/misteri', 'Misteri'],
             ['/regole', 'Regole'],
           ]
         : [
             ['/', 'Home'],
-            ['/accedi', 'Accedi'],
-            ['/registrati', 'Registrati'],
             ['/regole', 'Regole'],
           ];
   return (
@@ -83,21 +69,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     {label}
                   </Link>
                 ))}
-                {user?.role === 'admin' ? (
-                  <details className="nav-classes">
-                    <summary>
-                      Classi <ChevronDown size={15} />
-                    </summary>
-                    <div className="nav-classes-panel">
-                      <span className="nav-classes-kicker">Seleziona la classe</span>
-                      {classes.map((cls) => (
-                        <section className="nav-class-group" key={cls}>
-                          <Link href={`/narratore?classe=${encodeURIComponent(cls)}`}>{cls}</Link>
-                        </section>
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
               </div>
               {user ? (
                 <div className="nav-user">
@@ -108,6 +79,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               ) : null}
             </NavigationMenu>
+            {!user ? (
+              <Link className="button gold nav-auth" href="/accedi">
+                Accedi / Registrati
+              </Link>
+            ) : null}
           </div>
         </nav>
         <main>{children}</main>

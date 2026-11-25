@@ -24,6 +24,7 @@ export default defineConfig({
       PATH: process.env.PATH || '',
       NODE_ENV: 'development',
       DATABASE_DRIVER: 'sqlite',
+      ENABLE_DEMO_DATA: 'true',
       SUPABASE_DATABASE_URL: '',
       NEXT_DIST_DIR: '.next/playwright-tests',
       DATABASE_PATH: join(tmpdir(), `one-piece-keynes-playwright-${process.pid}.sqlite`),

@@ -100,56 +100,6 @@ export function CrewEmblem({
     </div>
   );
 }
-export function DreamCarousel({
-  dreams,
-}: {
-  dreams: { text: string; first_name: string; last_name: string; class_code: string }[];
-}) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (dreams.length < 2) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    setIndex(Math.floor(Math.random() * dreams.length));
-    const timer = setInterval(
-      () =>
-        setIndex((i) => (i + 1 + Math.floor(Math.random() * (dreams.length - 1))) % dreams.length),
-      7000,
-    );
-    return () => clearInterval(timer);
-  }, [dreams.length]);
-  if (!dreams.length) return null;
-  const dream = dreams[index];
-  return (
-    <div className="dream-card">
-      <div className="carousel-scene dream-scene" key={index}>
-        <span className="quote-mark">“</span>
-        <blockquote>“{dream.text}”</blockquote>
-      </div>
-      <div className="carousel-bottom">
-        <span key={`author-${index}`}>
-          {dream.first_name} {dream.last_name}, {dream.class_code}
-        </span>
-        <div className="carousel-controls">
-          <button
-            aria-label="Sogno precedente"
-            onClick={() => setIndex((i) => (i - 1 + dreams.length) % dreams.length)}
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <span>
-            {String(index + 1).padStart(2, '0')} / {String(dreams.length).padStart(2, '0')}
-          </span>
-          <button
-            aria-label="Sogno successivo"
-            onClick={() => setIndex((i) => (i + 1) % dreams.length)}
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 export function CrewCarousel({ crews }: { crews: Crew[] }) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);

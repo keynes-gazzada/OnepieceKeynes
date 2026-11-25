@@ -19,19 +19,22 @@ import { ProfilePanels } from '@/components/profile-panels';
 import { MysteriesPage } from '@/components/mysteries-page';
 import { AdminPanel } from '@/components/admin-panel';
 import { StudentBounty } from '@/components/student-bounty';
+import { PlanningPage } from '@/components/planning-page';
+import { LeaderboardFilters, LeaderboardStudent } from '@/components/leaderboard-controls';
 import { currentUser, requireUser } from '@/lib/auth';
 import { isISODate } from '@/lib/dates';
+import { scoringSettings } from '@/lib/scoring-settings';
 import { unifiedDaily } from '@/lib/unified-registry';
+import { studentPoints } from '@/lib/student-points';
 import {
   all,
-  dailyPoints,
+  dailyPoints as calculateDailyPoints,
   leaderboard,
   leaderboardForRange,
   one,
   scoreFor,
   type Crew,
   type Daily,
-  type Grade,
   type Mystery,
   type PointEvent,
   type Route,
@@ -48,6 +51,7 @@ const titles: Record<string, string> = {
   misteri: 'Misteri',
   regole: 'Regole',
   narratore: 'Narratore',
+  planning: 'Planning',
 };
 export async function generateMetadata({
   params,
@@ -149,18 +153,24 @@ export default async function Page({
   if (!titles[slug]) notFound();
   if (slug === 'regole') return <RulesPage />;
   const user = await requireUser();
+  if (slug === 'planning') {
+    if (user.role !== 'admin') redirect('/profilo');
+    return <PlanningPage />;
+  }
+  const settings = await scoringSettings();
+  const dailyPoints = (row: Daily) => calculateDailyPoints(row, settings.daily);
   if (slug === 'profilo') {
     if (user.role === 'admin') redirect('/narratore');
     const [crew, grades, pointEvents, daily, rankings, dreamScores, routes, crewMembers] =
       await Promise.all([
         user.crew_id ? one<Crew>('SELECT * FROM crews WHERE id=?', user.crew_id) : undefined,
-        all<Grade>('SELECT * FROM grades WHERE user_id=? ORDER BY date DESC,id DESC', user.id),
+        studentPoints(user.id).then((points) => points.grades),
         all<PointEvent>(
           'SELECT * FROM point_events WHERE user_id=? ORDER BY date DESC,id DESC',
           user.id,
         ),
         all<Daily>('SELECT * FROM daily WHERE user_id=? ORDER BY date DESC,id DESC', user.id).then(
-          unifiedDaily,
+          (rows) => unifiedDaily(rows, settings.daily),
         ),
         leaderboard(),
         all<{ date: string; points: number }>(
@@ -264,11 +274,12 @@ export default async function Page({
                 score: scoresByUser.get(member.id) ?? (await scoreFor(member.id)),
               })),
             )}
-            grades={grades}
-            pointEvents={pointEvents}
             daily={daily}
             periodStart={current?.start_date || ''}
             periodEnd={current?.end_date || ''}
+            linkedPlutonDates={grades
+              .filter((grade) => grade.weapon === 'Pluton')
+              .map((grade) => grade.date)}
           />
         </div>
         <section className="section-block">
@@ -357,6 +368,9 @@ export default async function Page({
               </tbody>
             </table>
           </div>
+          <details className="profile-mystery">
+            <summary aria-label="Scopri il mistero"><Image src="/images/mistero.png" alt="" width={110} height={90} /></summary>
+          </details>
         </section>
       </div>
     );
@@ -404,36 +418,59 @@ export default async function Page({
           >
             Totale
           </Link>
-          <form action="/viaggio" className="inline-filters">
-            {user.role === 'admin' ? (
-              <select name="classe" defaultValue={cls} aria-label="Classe della classifica">
-                <option value="">Tutte le classi</option>
-                {classes.map((classCode) => (
-                  <option key={classCode}>{classCode}</option>
-                ))}
-              </select>
-            ) : null}
-            <select name="anno" defaultValue={year || ''} aria-label="Anno" disabled={!cls}>
-              <option value="">Tutti gli anni</option>
-              {[...new Set(routes.map((r) => r.year))].map((y) => (
-                <option key={y} value={y}>
-                  {y}° anno
-                </option>
-              ))}
-            </select>
-            <select name="rotta" defaultValue={route || ''} aria-label="Rotta" disabled={!year}>
-              <option value="">Tutte le rotte</option>
-              {sameYear.map((r) => (
-                <option key={r.id} value={r.ordinal}>
-                  {r.ordinal}ª · {r.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="button small navy">
-              Applica
-            </button>
-          </form>
+          <LeaderboardFilters
+            classes={classes}
+            routes={routes}
+            cls={cls}
+            year={year}
+            route={route}
+            admin={user.role === 'admin'}
+          />
         </div>
+        {cls && !routes.length ? (
+          <p>Non ci sono ancora rotte configurate per questa classe.</p>
+        ) : null}
+        <section className="crew-leaderboard" aria-labelledby="crew-leaderboard-title">
+          <h2 id="crew-leaderboard-title">Classifica delle ciurme</h2>
+          <p>Somma delle taglie dei membri nel periodo selezionato.</p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Posizione</th>
+                  <th>Ciurma</th>
+                  <th>Classe</th>
+                  <th>Totale punti</th>
+                </tr>
+              </thead>
+              <tbody>
+                {crews
+                  .map((crew) => ({
+                    ...crew,
+                    total: rankings
+                      .filter((student) => student.crew_id === crew.id)
+                      .reduce((sum, student) => sum + student.score, 0),
+                    count: rankings.filter((student) => student.crew_id === crew.id).length,
+                  }))
+                  .filter((crew) => crew.count > 0)
+                  .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'it'))
+                  .map((crew, index) => (
+                    <tr key={crew.id}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <span className="registry-crew">
+                          <CrewEmblem flag={crew.flag} name={crew.name} />
+                          {crew.name}
+                        </span>
+                      </td>
+                      <td>{crew.class_code}</td>
+                      <td>{money(crew.total)} ฿</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <div className="leaderboard">
           <div className="leaderboard-title">
             <Trophy size={20} />
@@ -455,7 +492,11 @@ export default async function Page({
                   <Bounty firstName={p.first_name} lastName={p.last_name} score={p.score} compact />
                   <div className="leader-name">
                     <strong>
-                      {p.last_name} {p.first_name}
+                      {user.role === 'admin' ? (
+                        <LeaderboardStudent student={p} />
+                      ) : (
+                        `${p.last_name} ${p.first_name}`
+                      )}
                     </strong>
                     <span>
                       {p.class_code} · {crew?.name || 'Senza ciurma'}
@@ -465,7 +506,6 @@ export default async function Page({
                     <CrewEmblem flag={crew?.flag} name={crew?.name} />
                     <span>{crew?.name || '—'}</span>
                   </div>
-                  <strong className="leader-score">{money(p.score)} ฿</strong>
                 </div>
               );
             })
@@ -574,7 +614,7 @@ export default async function Page({
       <div className="container page onepiece-page admin-page">
         <Heading
           eyebrow="Pannello di bordo"
-          title="Registro punti"
+          title="Narratore"
           sub="Aggiorna la giornata, importa i dati e gestisci rotte e ruoli."
         />
         <AdminPanel
@@ -584,8 +624,13 @@ export default async function Page({
           initialDate={
             typeof query.data === 'string' && isISODate(query.data) ? query.data : undefined
           }
+          settings={settings}
           users={users}
-          narrators={narrators}
+          narrators={
+            process.env.ENABLE_DEMO_DATA === 'true'
+              ? narrators
+              : narrators.filter((n) => n.email !== 'narratore@demo.local')
+          }
           crews={crews}
           routes={routes}
           mysteries={mysteries}

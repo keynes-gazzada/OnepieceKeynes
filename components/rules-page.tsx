@@ -1,18 +1,44 @@
 import Link from 'next/link';
 
-const dailyRules = [
-  ['Presenza (P)', '0'],
-  ['Assenza (A)', '−40'],
-  ['Assenza penalizzata (A+)', '−80'],
-  ['Telefono', '+30'],
-  ['Bug segnalato', '+50 per Bug'],
-  ['Ansia', '−30'],
-  ['Multiverso', '+80 per Multiverso'],
-  ['Sogno', '+2 / +4'],
-  ['Mistero risolto', '+2.000'],
-];
+import { scoringSettings } from '@/lib/scoring-settings';
+import { all } from '@/lib/database';
+import { currentUser } from '@/lib/auth';
+import { defaultRules, rulesSheetPrefix, validRule, type RuleContent } from '@/lib/rules-content';
+import { RuleChapter, AdditionalRules } from './rule-chapter';
 
-export function RulesPage() {
+export async function RulesPage() {
+  const { daily: rules, grades } = await scoringSettings();
+  const [user, saved] = await Promise.all([
+    currentUser(),
+    all<{ data: string }>(
+      'SELECT data FROM imported_rows WHERE sheet LIKE ? ORDER BY id',
+      `${rulesSheetPrefix}%`,
+    ),
+  ]);
+  const contents = new Map<string, RuleContent>(defaultRules.map((rule) => [rule.id, rule]));
+  for (const row of saved) {
+    try {
+      const rule: unknown = JSON.parse(row.data);
+      if (validRule(rule)) contents.set(rule.id, rule);
+    } catch {
+      /* Ignore malformed historical entries. */
+    }
+  }
+  const admin = user?.role === 'admin';
+  const extra = [...contents.values()].filter(
+    (rule) => !defaultRules.some((item) => item.id === rule.id) && !rule.deleted,
+  );
+  const signed = (n: number) => (n > 0 ? '+' : '') + new Intl.NumberFormat('it-IT').format(n);
+  const dailyRules = [
+    ['Presenza (P)', '0'],
+    ['Assenza (A)', signed(rules.absence)],
+    ['Assenza penalizzata (A+)', signed(rules.absencePlus)],
+    ['Telefono', signed(rules.phone)],
+    ['Bug segnalato', signed(rules.bug) + ' per Bug'],
+    ['Ansia', signed(rules.anxiety) + ' per episodio'],
+    ['Multiverso', signed(rules.multiverse) + ' per Multiverso'],
+    ['Mistero risolto', signed(rules.mystery)],
+  ];
   return (
     <article className="container page rules-guide">
       <header className="rules-intro">
@@ -28,11 +54,7 @@ export function RulesPage() {
           <a href="#armi-misteri">Armi e misteri</a>
         </nav>
         <div className="rules-body">
-          <section id="punti" className="rules-chapter">
-            <h2>Punti e voti</h2>
-            <p>
-              La taglia è il totale dei punti ottenuti con i voti e le registrazioni giornaliere.
-            </p>
+          <RuleChapter initial={contents.get('punti')!} admin={admin}>
             <table className="rules-table">
               <caption>Il voto viene moltiplicato per il valore della prova.</caption>
               <thead>
@@ -44,17 +66,18 @@ export function RulesPage() {
               <tbody>
                 <tr>
                   <th scope="row">Verifica</th>
-                  <td>×200</td>
+                  <td>×{grades.verifica}</td>
                 </tr>
                 <tr>
                   <th scope="row">Progetto</th>
-                  <td>×100</td>
+                  <td>×{grades.progetto}</td>
                 </tr>
               </tbody>
             </table>
             <p className="rules-example">
-              Esempio: un 8 in una verifica vale 8 × 200 = <strong>1.600 punti</strong>. Le nuove
-              giornate partono da zero. I punti del telefono si assegnano selezionando “+”.
+              Esempio: un 8 in una verifica vale 8 × {grades.verifica} ={' '}
+              <strong>{new Intl.NumberFormat('it-IT').format(8 * grades.verifica)} punti</strong>.
+              La presenza (P) vale zero punti. I punti del telefono si assegnano selezionando “+”.
             </p>
             <table className="rules-table">
               <caption>Voci del registro giornaliero</caption>
@@ -74,48 +97,19 @@ export function RulesPage() {
               </tbody>
             </table>
             <p>
-              I punti dei frutti sono riportati nel registro. Il Narratore inserisce voti e attività
-              giornaliere.
+              Il Narratore inserisce voti, attività giornaliere e punti extra con data e
+              motivazione. Bug e ansia si conteggiano per ogni episodio. I valori riportati sono
+              quelli configurati dal Narratore.
             </p>
-          </section>
-          <section id="classifiche" className="rules-chapter">
-            <h2>Classifica</h2>
-            <p>
-              Tutte le attività condividono un unico registro e una sola classifica. I voti, le
-              attività e i punti già assegnati concorrono al totale.
-            </p>
-            <p>
-              Gli studenti vedono la classifica della propria classe e possono filtrarla per anno e
-              rotta. Il Narratore può confrontare tutte le classi nella classifica generale. La
-              colonna Materia dell’Excel viene ignorata.
-            </p>
+          </RuleChapter>
+          <RuleChapter initial={contents.get('classifiche')!} admin={admin}>
             <Link href="/viaggio">Apri la classifica</Link>
-          </section>
-          <section id="ciurme" className="rules-chapter">
-            <h2>Ciurme e ruoli</h2>
-            <p>
-              Il Narratore assegna gli studenti alle ciurme e può modificare i ruoli in qualsiasi
-              momento, scegliendo un ruolo suggerito o scrivendone uno personalizzato. Nel profilo
-              trovi la tua ciurma, i membri e il ruolo assegnato.
-            </p>
-            <p>
-              Le attività del Capitano, compresa l’Ambizione del Re Conquistatore, vengono definite
-              dal Narratore in classe.
-            </p>
-          </section>
-          <section id="armi-misteri" className="rules-chapter">
-            <h2>Armi e misteri</h2>
-            <p>
-              <strong>Poseidon, Pluton e Uranus</strong> sono utilizzabili una volta per periodo. La
-              risoluzione di un mistero può renderle nuovamente disponibili. Lo stato delle armi è
-              indicato nel profilo.
-            </p>
-            <p>
-              Ogni mistero ha quattro indizi. Nella pagina Misteri puoi vedere quelli trovati e,
-              quando il Narratore lo svela, il titolo e la descrizione.
-            </p>
+          </RuleChapter>
+          <RuleChapter initial={contents.get('ciurme')!} admin={admin} />
+          <RuleChapter initial={contents.get('armi-misteri')!} admin={admin}>
             <Link href="/misteri">Vedi i misteri</Link>
-          </section>
+          </RuleChapter>
+          <AdditionalRules initial={extra} admin={admin} />
         </div>
       </div>
     </article>

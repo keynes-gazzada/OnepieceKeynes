@@ -13,6 +13,7 @@ export const currentUser = cache(async (): Promise<User | null> => {
     sha(token),
     Date.now(),
   );
+  if (user?.email.endsWith('@demo.local') && process.env.ENABLE_DEMO_DATA !== 'true') return null;
   return user || null;
 });
 export async function requireUser(role?: 'admin' | 'student') {

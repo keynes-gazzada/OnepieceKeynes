@@ -1,7 +1,7 @@
 import 'server-only';
 import { database as sqliteDatabase } from './sqlite-runtime';
 import { dailyPoints } from './registry-core';
-import { POINT_RULES } from './point-rules';
+import { scoringSettings } from './scoring-settings';
 import { createSqlDatabase, type SqlValue } from './sql-database';
 import type { User, Daily } from './registry-core';
 export type { User, Crew, Route, Daily, Grade, PointEvent, Mystery } from './registry-core';
@@ -35,6 +35,7 @@ export async function userById(id: number) {
 }
 
 async function scoreInRange(userId: number, start?: string, end?: string) {
+  const { daily: rules } = await scoringSettings();
   let filter = ' WHERE user_id=?';
   const values: SqlValue[] = [userId];
   if (start && end) {
@@ -58,7 +59,7 @@ async function scoreInRange(userId: number, start?: string, end?: string) {
     (grades?.s || 0) +
     (imported?.s || 0) +
     (dreams?.s || 0) +
-    daily.reduce((sum, row) => sum + dailyPoints(row), 0)
+    daily.reduce((sum, row) => sum + dailyPoints(row, rules), 0)
   );
 }
 export async function scoreFor(userId: number) {
@@ -66,6 +67,7 @@ export async function scoreFor(userId: number) {
 }
 
 async function rankedUsers(cls?: string, start?: string, end?: string) {
+  const { daily: POINT_RULES } = await scoringSettings();
   const conditions: string[] = [];
   const values: SqlValue[] = [];
   if (start && end) {
@@ -81,7 +83,7 @@ async function rankedUsers(cls?: string, start?: string, end?: string) {
     daily_totals AS (SELECT user_id,SUM(
       CASE presence WHEN 'A' THEN ${POINT_RULES.absence} WHEN 'A+' THEN ${POINT_RULES.absencePlus} ELSE 0 END +
       CASE phone WHEN '+' THEN ${POINT_RULES.phone} ELSE 0 END +
-      bug * ${POINT_RULES.bug} + CASE WHEN anxiety<>0 THEN ${POINT_RULES.anxiety} ELSE 0 END +
+      CAST(bug AS BIGINT) * ${POINT_RULES.bug} + CAST(anxiety AS BIGINT) * ${POINT_RULES.anxiety} +
       CASE WHEN mystery<>0 THEN ${POINT_RULES.mystery} ELSE 0 END + multiverse_points + fruit_points - imported_points_offset
     ) points FROM daily${filter} GROUP BY user_id)
     SELECT u.id,u.email,u.first_name,u.last_name,u.class_code,u.role,u.crew_id,u.roles,u.last_password_change,

@@ -31,7 +31,9 @@ test('the admin API rejects an impossible calendar date', async ({ request }) =>
   });
 
   expect(response.status()).toBe(400);
-  await expect(response.json()).resolves.toEqual({ error: 'Voto non valido.' });
+  await expect(response.json()).resolves.toEqual({
+    error: 'Data, tipologia o elenco voti non validi.',
+  });
 });
 
 test('the data API rejects an impossible calendar date', async ({ request }) => {
@@ -58,7 +60,16 @@ test('registration requires an imported student and their school email', async (
   students.addRow(['3CI', 1, 'TESTER MARIO', 'Mugiwara']);
   const points = workbook.addWorksheet('One Piece');
   points.addRow(['Data', 'Rotta', 'Classe', 'Pirata', 'Tipologia', 'Punti', 'Voto', 'Materia']);
-  points.addRow([new Date('2026-09-29T00:00:00Z'), 1, '3CI', 'TESTER MARIO', 'Bug', 120, null, 'TPSIT']);
+  points.addRow([
+    new Date('2026-09-29T00:00:00Z'),
+    1,
+    '3CI',
+    'TESTER MARIO',
+    'Bug',
+    120,
+    null,
+    'TPSIT',
+  ]);
   const file = Buffer.from(await workbook.xlsx.writeBuffer());
 
   const upload = await request.post('/api/admin/upload', {

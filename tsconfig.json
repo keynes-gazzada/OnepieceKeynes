@@ -30,7 +30,9 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next/playwright-tests/types/**/*.ts",
-    ".next/playwright-tests/dev/types/**/*.ts"
+    ".next/playwright-tests/dev/types/**/*.ts",
+    ".next-student-preview/types/**/*.ts",
+    ".next-student-preview/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

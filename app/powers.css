@@ -110,6 +110,7 @@
   display: block;
   width: 104px;
   height: 104px;
+  object-fit: cover;
 }
 
 .power-copy {
@@ -172,6 +173,7 @@
   flex: none;
   width: 160px;
   height: 160px;
+  object-fit: cover;
 }
 
 .weapon-detail.illustrated-weapon {

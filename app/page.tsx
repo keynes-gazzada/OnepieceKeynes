@@ -3,25 +3,20 @@ import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { currentUser } from '@/lib/auth';
 import { all, type Crew } from '@/lib/database';
-import { DreamCarousel, CrewCarousel } from '@/components/interactive';
+import { CrewCarousel } from '@/components/interactive';
 import styles from './home-crews.module.css';
 export const dynamic = 'force-dynamic';
-type Dream = { text: string; first_name: string; last_name: string; class_code: string };
 export default async function Home() {
-  const [user, recentDreams, crews] = await Promise.all([
+  const [user, crews] = await Promise.all([
     currentUser(),
-    all<Dream>(
-      "SELECT dreams.text,users.first_name,users.last_name,users.class_code FROM dreams JOIN users ON users.id=dreams.user_id WHERE TRIM(dreams.text)<>'' ORDER BY dreams.id DESC LIMIT 20",
-    ),
     all<Crew>('SELECT * FROM crews ORDER BY class_code, name, id'),
   ]);
-  const dreams = recentDreams.filter((dream) => dream.text.trim().length > 0);
   return (
     <>
       <section className="hero">
         <Image
-          src="/images/one-piece/luffy-adventure.jpg"
-          alt="Monkey D. Luffy pronto a salpare"
+          src="/images/nave-scelta.png"
+          alt="Una nave a vela attraversa il mare al tramonto"
           fill
           priority
           sizes="100vw"
@@ -53,9 +48,11 @@ export default async function Home() {
                   Accedi al registro <ArrowRight size={18} />
                 </Link>
               )}
-              <Link className="hero-secondary" href={user ? '/viaggio' : '/regole'}>
-                {user ? 'Apri la classifica' : 'Leggi le regole'}
-              </Link>
+              {user ? (
+                <Link className="hero-secondary" href="/viaggio">
+                  Apri la classifica
+                </Link>
+              ) : null}
             </div>
           </div>
         </div>
@@ -73,15 +70,6 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-      ) : null}
-      {dreams.length ? (
-        <section className="home-stories container">
-          <div className="section-heading">
-            <h2>I sogni degli studenti</h2>
-            <p>I sogni condivisi nel registro.</p>
-          </div>
-          <DreamCarousel dreams={dreams} />
-        </section>
       ) : null}
       <section className={styles.section} aria-labelledby="home-crews-title">
         <div className="container">

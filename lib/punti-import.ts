@@ -3,6 +3,14 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { SqlDatabase } from './sql-database.ts';
 type ImportDatabase = DatabaseSync | SqlDatabase;
 import type { Cell, Row, Workbook, Worksheet } from 'exceljs';
+import {
+  appendPlanningRows,
+  parsePlanningSheet,
+  parseStudentsSheet,
+  createPlanningStudentSync,
+} from './planning-import.ts';
+import { graduatingStudents, removeGraduatingStudents } from './annual-roster.ts';
+import { PLANNING_IMPORT_LOCK } from './planning.ts';
 
 const CREW_IMAGES: Record<string, string> = {
   casteddu: '/images/crews/casteddu.jpg',
@@ -147,6 +155,8 @@ export type PuntiImportResult = {
   crews: number;
   events: number;
   skippedEvents: number;
+  planning: number;
+  removed: number;
 };
 
 export async function importPuntiWorkbook(
@@ -154,20 +164,61 @@ export async function importPuntiWorkbook(
   workbook: Workbook,
   source = 'Punti.xlsx',
   removeDemoData = false,
+  options: {
+    students?: boolean;
+    points?: boolean;
+    planning?: boolean;
+    graduatedIds?: number[];
+  } = {},
 ): Promise<PuntiImportResult> {
   await ensureBaseTables(database);
   await ensurePointEventsSchema(database);
 
-  const studentsSheet = findSheet(workbook, 'Studenti');
-  const pointsSheet = findSheet(workbook, 'One Piece');
-  if (!studentsSheet && !pointsSheet)
-    throw new Error('Il file non contiene i fogli Studenti o One Piece.');
+  const studentsSheet = options.students === false ? undefined : findSheet(workbook, 'Studenti');
+  const pointsSheet = options.points === false ? undefined : findSheet(workbook, 'One Piece');
+  const planningSheet = options.planning === false ? undefined : findSheet(workbook, 'Planning');
+  if (!studentsSheet && !pointsSheet && !planningSheet)
+    throw new Error('Il file non contiene i fogli richiesti.');
+  const studentRows = studentsSheet ? parseStudentsSheet(studentsSheet) : [];
+  const planningRows = planningSheet ? parsePlanningSheet(planningSheet) : [];
+  const classesByName = new Map<string, Set<string>>();
+  for (const item of studentRows) {
+    const name = key(item.values.student);
+    const classes = classesByName.get(name) || new Set<string>();
+    classes.add(item.values.classCode);
+    classesByName.set(name, classes);
+  }
 
-  const result: PuntiImportResult = { students: 0, crews: 0, events: 0, skippedEvents: 0 };
+  const result: PuntiImportResult = {
+    students: 0,
+    crews: 0,
+    events: 0,
+    skippedEvents: 0,
+    planning: 0,
+    removed: 0,
+  };
   const usersByRosterName = new Map<string, number>();
   const importedCrewIds = new Set<number>();
 
   const perform = async () => {
+    if ('dialect' in database && database.dialect === 'postgres')
+      await database.prepare('SELECT pg_advisory_xact_lock(?)').get(PLANNING_IMPORT_LOCK);
+    if (options.graduatedIds) {
+      if (!studentsSheet || !studentRows.length)
+        throw new Error('Studenti: il file annuale deve contenere un elenco studenti non vuoto.');
+      await database
+        .prepare("UPDATE users SET roles=roles WHERE role='student' AND class_code LIKE ?")
+        .run('5%');
+      const graduating = await graduatingStudents(database, studentRows);
+      const expected = [...options.graduatedIds].sort((a, b) => a - b);
+      const actual = graduating.map((student) => student.id).sort((a, b) => a - b);
+      if (JSON.stringify(expected) !== JSON.stringify(actual))
+        throw new Error(
+          'Studenti: l’elenco da rimuovere è cambiato; controlla di nuovo l’anteprima.',
+        );
+      await removeGraduatingStudents(database, graduating);
+      result.removed = graduating.length;
+    }
     if (removeDemoData) {
       await database
         .prepare(
@@ -183,41 +234,106 @@ export async function importPuntiWorkbook(
 
     if (studentsSheet) {
       await database.prepare('DELETE FROM imported_rows WHERE sheet=?').run(studentsSheet.name);
-      for (let rowNumber = 2; rowNumber <= studentsSheet.rowCount; rowNumber++) {
-        const row = studentsSheet.getRow(rowNumber);
-        const classCode = clean(cellValue(row.getCell(1))).toLocaleUpperCase('it-IT');
-        const fullName = clean(cellValue(row.getCell(3)));
-        const crewName = clean(cellValue(row.getCell(4)));
-        if (!classCode || !fullName || !crewName) continue;
+      const syncPlanningStudent = await createPlanningStudentSync(database);
+      const existingUsers = (await database
+        .prepare(
+          "SELECT id,email,first_name,last_name,class_code,crew_id FROM users WHERE role='student'",
+        )
+        .all()) as {
+        id: number;
+        email: string;
+        first_name: string;
+        last_name: string;
+        class_code: string;
+        crew_id: number | null;
+      }[];
+      const originalUserIds = new Set(existingUsers.map((user) => Number(user.id)));
+      for (const item of studentRows) {
+        const row = studentsSheet.getRow(item.row);
+        const classCode = item.values.classCode;
+        const fullName = item.values.student;
+        const crewName = item.values.crew;
 
-        let crew = (await database
-          .prepare('SELECT id FROM crews WHERE class_code=? AND name=? COLLATE NOCASE')
-          .get(classCode, crewName)) as { id: number } | undefined;
-        if (!crew) {
+        let crew = crewName
+          ? ((await database
+              .prepare('SELECT id FROM crews WHERE class_code=? AND name=? COLLATE NOCASE')
+              .get(classCode, crewName)) as { id: number } | undefined)
+          : undefined;
+        if (crewName && !crew) {
           const inserted = await database
             .prepare('INSERT INTO crews(name,class_code,flag) VALUES(?,?,?)')
             .run(crewName, classCode, crewImage(crewName));
           crew = { id: Number(inserted.lastInsertRowid) };
-        } else {
-          await database
-            .prepare('UPDATE crews SET name=?,flag=? WHERE id=?')
-            .run(crewName, crewImage(crewName), crew.id);
+        } else if (crewName && crew) {
+          await database.prepare('UPDATE crews SET name=? WHERE id=?').run(crewName, crew.id);
         }
-        importedCrewIds.add(crew.id);
+        if (crew) importedCrewIds.add(crew.id);
 
         const { first, last } = splitFullName(fullName);
-        const existingUsers = (await database
-          .prepare(
-            "SELECT id,first_name,last_name FROM users WHERE role='student' AND class_code=?",
-          )
-          .all(classCode)) as { id: number; first_name: string; last_name: string }[];
-        const user = existingUsers.find(
+        const matches = existingUsers.filter(
           (candidate) => key(`${candidate.last_name} ${candidate.first_name}`) === key(fullName),
         );
+        const sameClass = matches.filter(
+          (candidate) => key(candidate.class_code) === key(classCode),
+        );
+        if (sameClass.length > 1)
+          throw new Error(
+            `Studenti, riga ${item.row}: più studenti con lo stesso nome nella classe ${classCode}.`,
+          );
+        let user = sameClass[0];
+        if (
+          !user &&
+          (classesByName.get(key(fullName))?.size || 0) > 1 &&
+          matches.some((match) => originalUserIds.has(Number(match.id)))
+        )
+          throw new Error(
+            `Studenti, riga ${item.row}: nome presente in più classi; verifica l'identità prima dell'importazione.`,
+          );
+        if (!user && classesByName.get(key(fullName))?.size === 1) {
+          if (matches.length > 1)
+            throw new Error(
+              `Studenti, riga ${item.row}: nome presente in più classi; verifica l'identità prima dell'importazione.`,
+            );
+          if (matches.length === 1) {
+            if (/^5/.test(matches[0].class_code))
+              throw new Error(
+                `Studenti, riga ${item.row}: occorre verificare lo studente proveniente dalla quinta prima di aggiornare la classe.`,
+              );
+            const previousClass = /^([1-4])(.+)$/.exec(key(matches[0].class_code));
+            const nextClass = /^([2-5])(.+)$/.exec(key(classCode));
+            if (
+              !previousClass ||
+              !nextClass ||
+              Number(nextClass[1]) !== Number(previousClass[1]) + 1 ||
+              nextClass[2] !== previousClass[2]
+            )
+              throw new Error(
+                `Studenti, riga ${item.row}: il cambio di classe richiede una verifica dell'identità.`,
+              );
+            user = matches[0];
+          }
+        }
         let userId: number;
+        let planningCrew = crewName;
         if (user) {
           userId = user.id;
-          await database.prepare('UPDATE users SET crew_id=? WHERE id=?').run(crew.id, userId);
+          const crewId =
+            crew?.id ?? (key(user.class_code) === key(classCode) ? user.crew_id : null);
+          const email = user.email.endsWith('@studenti.invalid')
+            ? placeholderEmail(classCode, fullName)
+            : user.email;
+          await database
+            .prepare('UPDATE users SET class_code=?,crew_id=?,email=? WHERE id=?')
+            .run(classCode, crewId, email, userId);
+          if (!planningCrew && crewId) {
+            const previousCrew = (await database
+              .prepare('SELECT name FROM crews WHERE id=?')
+              .get(crewId)) as { name: string } | undefined;
+            planningCrew = previousCrew?.name || '';
+          }
+          user.class_code = classCode;
+          user.crew_id = crewId;
+          user.email = email;
         } else {
           const password = passwordRecord();
           const inserted = await database
@@ -232,18 +348,32 @@ export async function importPuntiWorkbook(
               last,
               classCode,
               'student',
-              crew.id,
+              crew?.id ?? null,
               'Equipaggio',
             );
           userId = Number(inserted.lastInsertRowid);
+          existingUsers.push({
+            id: userId,
+            email: placeholderEmail(classCode, fullName),
+            first_name: first,
+            last_name: last,
+            class_code: classCode,
+            crew_id: crew?.id ?? null,
+          });
         }
         usersByRosterName.set(`${classCode}|${key(fullName)}`, userId);
+        await syncPlanningStudent(userId, { ...item.values, crew: planningCrew });
         await saveImportedRow(database, studentsSheet, row);
         result.students++;
       }
     }
 
     result.crews = importedCrewIds.size;
+
+    if (planningSheet) {
+      await appendPlanningRows(database, planningRows);
+      result.planning = planningRows.length;
+    }
 
     if (pointsSheet) {
       await database.prepare('DELETE FROM point_events WHERE source=?').run(source);

@@ -53,6 +53,7 @@ test('narrator reuses registration without class and keeps their own session', a
   const originalSession = (await page.context().cookies()).find(
     (c) => c.name === 'one_piece_session',
   )?.value;
+  await page.getByRole('button', { name: 'Apri dettagli utenti' }).click();
   await page.getByRole('button', { name: 'Nuovo admin' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('[name="classCode"]')).toHaveCount(0);
@@ -78,6 +79,7 @@ test('narrator reuses registration without class and keeps their own session', a
     await expect(login.json()).resolves.toMatchObject({ role: 'admin' });
     const adminPage = await created.newPage();
     await adminPage.goto('/narratore');
+    await adminPage.getByRole('button', { name: 'Apri dettagli utenti' }).click();
     await expect(adminPage.getByRole('button', { name: 'Nuovo admin' })).toBeVisible();
   } finally {
     await created.close();

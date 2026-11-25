@@ -123,7 +123,7 @@ test('narrator totals include imported points and refresh after saving without c
   await expect(page.locator('.registry-table tbody tr').last()).toContainText('Importati Totale');
   await page.getByRole('button', { name: 'Ordina per Totale giornata', exact: true }).click();
   await expect(page.locator('.registry-table tbody tr').first()).toContainText('Importati Totale');
-  await expect(row.locator('td').last()).toHaveText('1300');
+  await expect(row.locator('td').last()).toHaveText('1220');
   await page.getByRole('button', { name: 'Salva registro', exact: true }).click();
   await expect(row.locator('td').last()).toHaveText('1220');
   await page.getByLabel('Data', { exact: true }).fill('2026-10-10');

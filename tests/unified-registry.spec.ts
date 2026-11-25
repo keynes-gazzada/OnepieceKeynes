@@ -207,20 +207,24 @@ test('subject labels and filters cannot split imports, profiles or rankings', as
       `${new Intl.NumberFormat('it-IT').format(score)} ฿`,
     );
     await page.getByRole('button', { name: /La tua taglia/ }).click();
-    await expect(page.getByRole('dialog')).not.toContainText(/TPSIT|SER|Registro precedente/);
+    await expect(page.getByRole('dialog').locator('.points-total')).toContainText(
+      new Intl.NumberFormat('it-IT').format(score),
+    );
     const day = page
       .getByRole('dialog')
       .getByRole('row')
-      .filter({ hasText: 'Giornata' })
       .filter({ hasText: /10\/0?3\/2027/ });
-    await expect(day).toHaveCount(1);
+    await expect(day).toHaveCount(4);
     await page.getByRole('dialog').getByRole('button', { name: 'Chiudi', exact: true }).click();
     await page.goto(`/viaggio?materia=${subject}`);
     await expect(page.locator('.leaderboard')).toHaveCount(1);
     await expect(page.getByRole('navigation', { name: 'Materie', exact: true })).toHaveCount(0);
     await expect(
-      page.locator('.leader-row').filter({ hasText: 'Rossi Nami' }).locator('.leader-score'),
-    ).toHaveText(`${new Intl.NumberFormat('it-IT').format(score)} ฿`);
+      page
+        .locator('.leader-row')
+        .filter({ hasText: 'Rossi Nami' })
+        .locator('.student-bounty-score'),
+    ).toHaveText(`฿ ${new Intl.NumberFormat('it-IT').format(score)}`);
   }
 });
 
@@ -251,6 +255,7 @@ test('bulk columns respect crew filters and multiple bugs and multiverses persis
   await page.getByLabel('Bug di Nami').fill('3');
   const row = page.locator('.registry-table tbody tr').filter({ hasText: 'Rossi Nami' });
   await row.locator('td').nth(8).getByRole('button').click();
+  await page.getByText('Registrazione giornaliera precedente').click();
   await page.getByLabel('Numero di multiversi').fill('2');
   await page.getByRole('button', { name: 'Conferma', exact: true }).click();
   await expect(row.locator('td').nth(11)).toHaveText('310');
@@ -259,7 +264,7 @@ test('bulk columns respect crew filters and multiple bugs and multiverses persis
   await page.reload();
   await expect(page.getByLabel('Bug di Nami')).toHaveValue('3');
   await expect(row.locator('td').nth(11)).toHaveText('310');
-  await row.locator('td').nth(10).getByRole('button').click();
+  await row.getByRole('button', { name: 'Dettagli', exact: true }).click();
   await expect(
     page.getByRole('dialog').getByRole('option', { name: 'interrogazione' }),
   ).toHaveCount(0);
@@ -330,7 +335,7 @@ test('admin rankings include all classes while student class access remains rest
   await expect(page.locator('.leader-row').filter({ hasText: 'Rossi Nami' })).toBeVisible();
   await expect(page.locator('.leader-row').filter({ hasText: 'Verdi Marta' })).toBeVisible();
   await expect(page.locator('.leader-name').filter({ hasText: '4CI ·' }).first()).toBeVisible();
-  const scores = await page.locator('.leader-score').allTextContents();
+  const scores = await page.locator('.leader-row .student-bounty-score').allTextContents();
   const values = scores.map((s) => Number(s.replace(/[^0-9-]/g, '')));
   expect(values).toEqual([...values].sort((a, b) => b - a));
   await page.getByLabel('Classe della classifica').selectOption('4CI');
@@ -391,6 +396,7 @@ test('user details support search, registration filters and keyboard access on d
   await page.getByLabel('Classe', { exact: true }).selectOption('5CI');
   await trigger.click();
   await dialog.getByLabel('Stato utenti').selectOption('unregistered');
+  await dialog.getByLabel('Cerca utenti').fill('Dettagli Nuovo');
   await expect(dialog.locator('.admin-user-list > li')).toHaveCount(1);
   await expect(dialog).toContainText('Dettagli Nuovo');
   await expect(dialog).not.toContainText('@studenti.invalid');
@@ -454,6 +460,7 @@ test('routes and custom roles can be edited without choosing a crew; mystery not
   );
   await page.getByRole('dialog').getByRole('button', { name: 'Chiudi', exact: true }).click();
   await expect(page.getByLabel('Ruolo di Nami Rossi', { exact: true })).toHaveValue('Cartografa');
+  await page.getByRole('button', { name: 'Misteri', exact: true }).click();
   await page.getByLabel('Titolo nuovo mistero').fill('Mistero da eliminare');
   await page.getByRole('button', { name: 'Aggiungi mistero', exact: true }).click();
   const mysteries = page.locator('.admin-mysteries');
@@ -465,6 +472,7 @@ test('routes and custom roles can be edited without choosing a crew; mystery not
   await page.getByRole('button', { name: 'Conferma eliminazione' }).click();
   await expect(mysteries.getByRole('status')).toHaveText('Mistero eliminato.');
   await page.reload();
+  await page.getByRole('button', { name: 'Misteri', exact: true }).click();
   await expect(mysteries.getByText('Mistero da eliminare', { exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page

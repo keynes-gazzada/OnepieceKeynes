@@ -70,7 +70,7 @@
 
 /* Opening shot: a quick manga-like build, then only subtle ambient motion. */
 .hero-art {
-  transform: translate3d(var(--pointer-x), var(--pointer-y), 0) scale(1.045) scaleX(-1);
+  transform: translate3d(var(--pointer-x), var(--pointer-y), 0) scale(1.045) scaleX(1);
   transition: transform 700ms ease-out;
   animation: motion-hero-art-in 1050ms ease-out both;
   will-change: transform;
@@ -567,7 +567,7 @@
 
 @media (max-width: 780px) {
   .hero-art {
-    transform: translate3d(0, 0, 0) scale(1.025) scaleX(-1);
+    transform: translate3d(0, 0, 0) scale(1.025) scaleX(1);
     will-change: auto;
   }
 
@@ -587,7 +587,7 @@
   }
 
   .hero-art {
-    transform: scaleX(-1);
+    transform: scaleX(1);
     will-change: auto;
   }
 

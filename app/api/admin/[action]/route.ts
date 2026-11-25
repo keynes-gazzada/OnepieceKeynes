@@ -14,9 +14,10 @@ import { adminSchoolEmail, schoolEmailPart } from '@/lib/school-email';
 import { isISODate } from '@/lib/dates';
 import { isSameOrigin } from '@/lib/security';
 import { importPuntiWorkbook } from '@/lib/punti-import';
-import { POINT_RULES, GRADE_MULTIPLIERS } from '@/lib/point-rules';
 import { unifiedDaily } from '@/lib/unified-registry';
 import { registrySubject } from '@/lib/registry-lessons';
+import { manageAdmin } from '@/lib/admin-management';
+import { scoringSettings } from '@/lib/scoring-settings';
 export const runtime = 'nodejs';
 const error = (message: string, status = 400) => NextResponse.json({ error: message }, { status });
 const key = (s: unknown) =>
@@ -67,13 +68,19 @@ export async function POST(
             Studenti: imported.students,
             Ciurme: imported.crews,
             'One Piece': imported.events,
+            ...(imported.planning ? { Planning: imported.planning } : {}),
           },
           warning: imported.skippedEvents
             ? `${imported.skippedEvents} movimenti non sono stati associati a uno studente.`
             : '',
         });
-      } catch {
-        return error('Importazione interrotta: controlla i fogli Studenti e One Piece.');
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '';
+        return error(
+          /^(Planning|Studenti|Il foglio)/.test(message)
+            ? message
+            : 'Importazione interrotta: controlla i fogli Studenti e One Piece.',
+        );
       }
     }
     const accepted =
@@ -244,6 +251,12 @@ export async function POST(
     return error('Dati non validi.');
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return error('Dati non validi.');
+  try {
+    const managed = await manageAdmin(action, body, u);
+    if (managed) return managed;
+  } catch {
+    return error('Operazione non riuscita. Ricarica i dati e riprova.', 500);
+  }
   if (action === 'create-admin') {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return error('Dati non validi.');
     const field = (name: string) => (typeof body[name] === 'string' ? body[name].trim() : '');
@@ -271,60 +284,8 @@ export async function POST(
     if (!created.changes) return error('Mail già registrata.', 409);
     return NextResponse.json({ ok: true }, { status: 201 });
   }
-  if (action === 'dream-save') {
-    const text = typeof body.text === 'string' ? body.text.trim() : '';
-    const userId = Number(body.user_id);
-    const id = body.id === undefined ? undefined : Number(body.id);
-    const points = body.points === undefined ? 0 : body.points;
-    const date = typeof body.date === 'string' ? body.date : '';
-    if (typeof points !== 'number' || ![0, 2, 4].includes(points))
-      return error('I punti del sogno possono essere solo 0, +2 o +4.');
-    if ((date && !isISODate(date)) || (points > 0 && !isISODate(date)))
-      return error('Seleziona una data valida per i punti del sogno.');
-    if (!text || text.length > 1000) return error('Inserisci un sogno da 1 a 1000 caratteri.');
-    const student = Number.isSafeInteger(userId)
-      ? await one<User>("SELECT * FROM users WHERE id=? AND role='student'", userId)
-      : undefined;
-    if (!student) return error('Seleziona uno studente valido.');
-    if (id !== undefined) {
-      if (!Number.isSafeInteger(id) || id <= 0) return error('Sogno non valido.');
-      const result = await run(
-        "UPDATE dreams SET text=?,user_id=?,points=?,date=?,subject='' WHERE id=?",
-        text,
-        userId,
-        points,
-        date,
-        id,
-      );
-      if (!result.changes) return error('Sogno non trovato.', 404);
-      return NextResponse.json({
-        ok: true,
-        dream: { id, user_id: userId, text, points, date },
-      });
-    }
-    const result = await run(
-      'INSERT INTO dreams(user_id,text,points,date) VALUES(?,?,?,?)',
-      userId,
-      text,
-      points,
-      date,
-    );
-    return NextResponse.json(
-      {
-        ok: true,
-        dream: { id: Number(result.lastInsertRowid), user_id: userId, text, points, date },
-      },
-      { status: 201 },
-    );
-  }
-  if (action === 'dream-delete') {
-    const id = Number(body.id);
-    if (!Number.isSafeInteger(id) || id <= 0) return error('Sogno non valido.');
-    const result = await run('DELETE FROM dreams WHERE id=?', id);
-    if (!result.changes) return error('Sogno non trovato.', 404);
-    return NextResponse.json({ ok: true });
-  }
   if (action === 'registry') {
+    const { daily: rules } = await scoringSettings();
     const date = String(body.date || '');
     const subject = registrySubject(body.subject);
     if (subject === null) return error('Materia non valida.');
@@ -340,17 +301,34 @@ export async function POST(
       );
       if (!pirate) return error('Studente non valido.');
       const bug = Number(raw.bug || 0),
-        multiverse = Number(raw.multiverse_points || 0);
+        multiverse = Number(raw.multiverse_points || 0),
+        anxiety = Number(raw.anxiety || 0);
       if (
         !Number.isSafeInteger(bug) ||
         bug < 0 ||
         bug > 1_000_000 ||
         !Number.isSafeInteger(multiverse) ||
         multiverse < 0 ||
-        multiverse > 80_000_000 ||
-        multiverse % POINT_RULES.multiverse !== 0
+        multiverse > 2_000_000_000 ||
+        !Number.isSafeInteger(anxiety) ||
+        anxiety < 0 ||
+        anxiety > 1_000_000
       )
-        return error('Inserisci un numero intero valido di Bug e Multiversi.');
+        return error('Inserisci numeri interi validi di Bug, Ansia e Multiversi.');
+      if (multiverse % rules.multiverse !== 0) {
+        // A changed unit value must not invalidate a previously saved amount.
+        const previous = await one<{ points: number }>(
+          'SELECT COALESCE(SUM(multiverse_points),0) points FROM daily WHERE date=? AND user_id=? AND subject IN (?,?)',
+          date,
+          pirate.id,
+          subject,
+          legacySubject,
+        );
+        if (multiverse !== Number(previous?.points || 0))
+          return error(
+            'I punti dei nuovi Multiversi devono essere multipli del valore configurato.',
+          );
+      }
     }
     try {
       await transaction(async () => {
@@ -371,11 +349,12 @@ export async function POST(
               subject,
               legacySubject,
             ),
+            rules,
           )[0];
           const importedOffset = previous?.imported_points_offset ?? 0;
           const phone = String(r.phone) === '+' ? '+' : '';
           const bug = Number(r.bug || 0),
-            anxiety = r.anxiety ? 1 : 0,
+            anxiety = Number(r.anxiety || 0),
             mystery = r.mystery ? 1 : 0,
             weapon = String(r.weapon || '')
               .split(', ')
@@ -424,31 +403,6 @@ export async function POST(
       return error('Salvataggio non riuscito.', 500);
     }
   }
-  if (action === 'grade') {
-    const id = Number(body.user_id),
-      date = String(body.date || ''),
-      type = String(body.type || ''),
-      grade = Number(body.grade);
-    if (
-      !(await one("SELECT id FROM users WHERE id=? AND role='student'", id)) ||
-      !isISODate(date) ||
-      !['verifica', 'progetto'].includes(type) ||
-      !Number.isFinite(grade) ||
-      grade < 2 ||
-      grade > 10
-    )
-      return error('Voto non valido.');
-    const mult = GRADE_MULTIPLIERS[type as 'verifica' | 'progetto'];
-    await run(
-      'INSERT INTO grades(user_id,date,type,grade,points) VALUES(?,?,?,?,?)',
-      id,
-      date,
-      type,
-      grade,
-      Math.round(grade * mult),
-    );
-    return NextResponse.json({ ok: true, points: Math.round(grade * mult) });
-  }
   if (action === 'route') {
     const id = Number(body.id),
       name = String(body.name || '').trim(),
@@ -470,8 +424,7 @@ export async function POST(
       role = String(body.role || '').trim();
     if (
       !(await one("SELECT id FROM users WHERE id=? AND role='student'", id)) ||
-      !role ||
-      role.length > 120
+      !['Capitano', 'Navigatore', 'Carpentiere', 'Medico', 'Cecchino'].includes(role)
     )
       return error('Ruolo non valido.');
     await run('UPDATE users SET roles=? WHERE id=?', role, id);

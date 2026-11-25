@@ -14,7 +14,7 @@ const revealGroups = [
   },
   {
     selector:
-      '.welcome-strip, .profile-intro > div, .profile-cards > *, .section-block, .filter-bar, .leaderboard-title, .leader-row, .route-card, .mystery-card, .rule-columns > div, .weapon-rule-grid > div, .admin-toolbar, .admin-tile, .registry-section, .admin-mysteries, .mystery-admin-card, .table-wrap, .empty-state, .footer-inner, .auth-frame, .auth-postcards figure',
+      '.welcome-strip, .profile-intro > div, .profile-cards > *, .section-block, .filter-bar, .leaderboard-title, .leader-row, .route-card, .mystery-card, .rule-columns > div, .weapon-rule-grid > div, .admin-toolbar, .admin-tile, .registry-section, .admin-mysteries, .mystery-admin-card, .table-wrap:not(.planning-table), .empty-state, .footer-inner, .auth-frame, .auth-postcards figure',
     direction: 'up',
   },
 ] as const;

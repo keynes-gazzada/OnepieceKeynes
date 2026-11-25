@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-student-preview
 .env*
 !.env.example
 .data

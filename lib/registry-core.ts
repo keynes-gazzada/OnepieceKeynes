@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { dailyPoints as calculateDailyPoints } from './point-rules';
+import { dailyPoints as calculateDailyPoints, type PointRules } from './point-rules';
 
 export type User = {
   id: number;
@@ -48,6 +48,8 @@ export type Grade = {
   type: string;
   grade: number;
   points: number;
+  weapon?: 'Pluton' | '';
+  description?: string;
 };
 export type PointEvent = {
   id: number;
@@ -90,6 +92,7 @@ export function dailyPoints(
     | 'fruit_points'
     | 'imported_points_offset'
   >,
+  rules?: PointRules,
 ) {
-  return calculateDailyPoints(r);
+  return calculateDailyPoints(r, rules);
 }

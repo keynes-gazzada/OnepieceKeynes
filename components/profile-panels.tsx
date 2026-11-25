@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
-import { ArrowRight, Skull } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { CrewEmblem, Modal } from './interactive';
 import { StudentBounty } from './student-bounty';
-import type { Crew, Daily, Grade, PointEvent, User } from '@/lib/db';
+import type { Crew, Daily, User } from '@/lib/db';
 import { studentPortraitUrl } from '@/lib/student-portraits';
-import { dailyPoints } from '@/lib/point-rules';
+import { StudentPointsDialog } from './admin-management';
 import styles from './crew-members.module.css';
 const format = (n: number) => new Intl.NumberFormat('it-IT').format(n);
 const weapons = [
@@ -20,22 +20,20 @@ export function ProfilePanels({
   rank,
   crew,
   members,
-  grades,
-  pointEvents,
   daily,
   periodStart,
   periodEnd,
+  linkedPlutonDates = [],
 }: {
   user: User;
   score: number;
   rank: number;
   crew: Crew | null;
   members: (User & { score: number })[];
-  grades: Grade[];
-  pointEvents: PointEvent[];
   daily: Daily[];
   periodStart: string;
   periodEnd: string;
+  linkedPlutonDates?: string[];
 }) {
   const [modal, setModal] = useState<'bounty' | 'crew' | 'Poseidon' | 'Pluton' | 'Uranus' | null>(
     null,
@@ -45,8 +43,17 @@ export function ProfilePanels({
   );
   const used = new Set(
     ['Poseidon', 'Pluton', 'Uranus'].filter((name) => {
-      const lastUse = periodDaily.find((d) => d.weapon.split(', ').includes(name));
-      return lastUse && !periodDaily.some((d) => d.mystery && d.date >= lastUse.date);
+      const dates = periodDaily
+        .filter((d) => d.weapon.split(', ').includes(name))
+        .map((d) => d.date);
+      if (name === 'Pluton')
+        dates.push(
+          ...linkedPlutonDates.filter(
+            (date) => periodStart && periodEnd && date >= periodStart && date <= periodEnd,
+          ),
+        );
+      const lastUse = dates.sort().at(-1);
+      return lastUse && !periodDaily.some((d) => d.mystery && d.date >= lastUse);
     }),
   );
   return (
@@ -97,7 +104,7 @@ export function ProfilePanels({
               aria-label={`${name}: ${used.has(name) ? 'già usata' : 'disponibile'}. Vedi dettagli`}
             >
               <div className="power-art">
-                <Image src={`/images/powers/${image}.svg`} alt="" width={112} height={112} />
+                <Image src={`/images/${image}.png`} alt="" width={112} height={112} />
               </div>
               <div className="power-copy">
                 <span className="power-number">Arma ancestrale / 0{i + 1}</span>
@@ -110,56 +117,11 @@ export function ProfilePanels({
         </div>
       </div>
       {modal === 'bounty' ? (
-        <Modal title="Dettaglio taglia" onClose={() => setModal(null)}>
-          <div className="modal-bounty">
-            <Skull />
-            <span>Taglia totale</span>
-            <strong>{format(score)} ฿</strong>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Periodo</th>
-                  <th>Tipologia</th>
-                  <th>Punti</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pointEvents.map((event) => (
-                  <tr key={`e${event.id}`}>
-                    <td>{new Date(`${event.date}T12:00:00`).toLocaleDateString('it-IT')}</td>
-                    <td>{event.route ? `${event.route}ª rotta` : event.date.slice(0, 4)}</td>
-                    <td>
-                      {event.type}
-                      {event.grade !== null ? ` · ${event.grade}` : ''}
-                    </td>
-                    <td>{event.points > 0 ? `+${event.points}` : event.points}</td>
-                  </tr>
-                ))}
-                {grades.map((g) => (
-                  <tr key={g.id}>
-                    <td>{new Date(g.date).toLocaleDateString('it-IT')}</td>
-                    <td>{g.date.slice(0, 4)}</td>
-                    <td>
-                      {g.type} · {g.grade}
-                    </td>
-                    <td>+{g.points}</td>
-                  </tr>
-                ))}
-                {daily.map((d) => (
-                  <tr key={`d${d.id}`}>
-                    <td>{new Date(d.date).toLocaleDateString('it-IT')}</td>
-                    <td>{d.date.slice(0, 4)}</td>
-                    <td>Giornata</td>
-                    <td>{dailyPoints(d)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
+        <StudentPointsDialog
+          student={user}
+          date={new Date().toLocaleDateString('en-CA')}
+          onClose={() => setModal(null)}
+        />
       ) : null}
       {modal === 'crew' ? (
         <Modal title="Dettaglio ciurma" onClose={() => setModal(null)}>
@@ -215,8 +177,8 @@ export function ProfilePanels({
         <Modal title={modal} onClose={() => setModal(null)}>
           <div className={`weapon-detail illustrated-weapon ${used.has(modal) ? 'used' : ''}`}>
             <Image
-              src={`/images/powers/${modal.toLowerCase()}.svg`}
-              alt={`Illustrazione simbolica di ${modal}`}
+              src={`/images/${modal.toLowerCase()}.png`}
+              alt={`Immagine di ${modal}`}
               width={160}
               height={160}
             />

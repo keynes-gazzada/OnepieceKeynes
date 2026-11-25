@@ -23,7 +23,7 @@
 
 .section::before {
   left: 28%;
-  background: url('/images/one-piece/worst-generation.jpg') center 45% / cover no-repeat;
+  background: url('/images/one-piece/ciurme.jpg') center 45% / cover no-repeat;
   filter: saturate(0.7) blur(1px);
   opacity: 0.8;
 }

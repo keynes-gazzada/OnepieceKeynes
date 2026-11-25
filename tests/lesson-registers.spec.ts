@@ -192,22 +192,17 @@ test('narrator can save TPSIT and SER on the same day and reopen each register',
   await expect(
     subject.getByRole('option', { name: 'Seleziona una materia', exact: true }),
   ).toHaveAttribute('disabled', '');
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveCount(0);
   await expect(row.getByLabel('Bug di Nami')).toBeDisabled();
-  await expect(
-    row.getByRole('button', { name: 'Sogni di Nami Rossi', exact: true }),
-  ).toBeDisabled();
+  await expect(row.getByRole('button', { name: 'Dettagli', exact: true })).toBeDisabled();
   await subject.selectOption('TPSIT');
-  await expect(save).toBeEnabled();
   await row.getByLabel('Bug di Nami').fill('2');
-  await save.click();
-  await expect(page.locator('.registry-section [role="status"]')).toContainText('TPSIT salvato');
+  await expect(page.locator('.registry-section [aria-live="polite"]')).toContainText('salvate automaticamente');
   await subject.selectOption('SER');
   await expect(row.getByLabel('Bug di Nami')).toHaveValue('0');
   await expect(row.locator('td').nth(11)).toHaveText('160');
   await row.getByLabel('Bug di Nami').fill('1');
-  await save.click();
-  await expect(page.locator('.registry-section [role="status"]')).toContainText('SER salvato');
+  await expect(page.locator('.registry-section [aria-live="polite"]')).toContainText('salvate automaticamente');
   await expect(row.locator('td').last()).toHaveText(expectedTotal);
   await page.reload();
   await expect(subject).toHaveValue('SER');
@@ -219,8 +214,8 @@ test('narrator can save TPSIT and SER on the same day and reopen each register',
   await page.goto('/viaggio?classe=3CI');
   await expect(page.locator('.leaderboard')).toHaveCount(1);
   await expect(
-    page.locator('.leader-row').filter({ hasText: 'Rossi Nami' }).locator('.leader-score'),
-  ).toHaveText(`${expectedTotal} ฿`);
+    page.locator('.leader-row').filter({ hasText: 'Rossi Nami' }).locator('.student-bounty-score'),
+  ).toHaveText(`฿ ${expectedTotal}`);
   await page.request.post('/api/auth/login', {
     data: { email: 'studentessa@demo.local', password: 'Demo1234!' },
   });
@@ -230,7 +225,7 @@ test('narrator can save TPSIT and SER on the same day and reopen each register',
   const day = page
     .getByRole('dialog')
     .getByRole('row')
-    .filter({ hasText: 'Giornata' })
+    .filter({ hasText: /TPSIT|SER/ })
     .filter({ hasText: /04\/0?4\/2027/ });
-  await expect(day).toHaveCount(1);
+  await expect(day).toHaveCount(4);
 });
